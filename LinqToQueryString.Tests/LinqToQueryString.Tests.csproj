@@ -36,7 +36,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Machine.Specifications">
-      <HintPath>..\LinqToQueryString.UnitTests\bin\Debug\Machine.Specifications.dll</HintPath>
+	  <HintPath>..\packages\Machine.Specifications.0.5.12\lib\net40\Machine.Specifications.dll</HintPath>
     </Reference>
     <Reference Include="System" />
   </ItemGroup>
