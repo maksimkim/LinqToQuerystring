@@ -7,7 +7,7 @@
 
     using LinqToQuerystring.TreeNodes.Base;
 
-    public class OrNode : TwoChildNode
+    public class OrNode : BinaryNode
     {
         public OrNode(IToken payload, TreeNodeFactory treeNodeFactory)
             : base(payload, treeNodeFactory)

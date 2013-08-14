@@ -7,7 +7,7 @@
 
     using LinqToQuerystring.TreeNodes.Base;
 
-    public class InlineCountNode : SingleChildNode
+    public class InlineCountNode : TreeNode
     {
         public InlineCountNode(IToken payload, TreeNodeFactory treeNodeFactory)
             : base(payload, treeNodeFactory)

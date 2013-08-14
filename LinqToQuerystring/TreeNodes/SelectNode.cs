@@ -10,7 +10,7 @@
 
     using LinqToQuerystring.TreeNodes.Base;
 
-    public class SelectNode : SingleChildNode
+    public class SelectNode : TreeNode
     {
         public SelectNode(IToken payload, TreeNodeFactory treeNodeFactory)
             : base(payload, treeNodeFactory)

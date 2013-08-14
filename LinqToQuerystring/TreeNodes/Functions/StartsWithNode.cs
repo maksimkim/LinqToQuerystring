@@ -7,7 +7,7 @@
 
     using LinqToQuerystring.TreeNodes.Base;
 
-    public class StartsWithNode : TwoChildNode
+    public class StartsWithNode : BinaryNode
     {
         public StartsWithNode(IToken payload, TreeNodeFactory treeNodeFactory)
             : base(payload, treeNodeFactory)

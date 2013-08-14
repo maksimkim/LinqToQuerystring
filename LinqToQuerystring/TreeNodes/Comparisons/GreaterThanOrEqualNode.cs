@@ -7,7 +7,7 @@
 
     using LinqToQuerystring.TreeNodes.Base;
 
-    public class GreaterThanOrEqualNode : TwoChildNode
+    public class GreaterThanOrEqualNode : BinaryNode
     {
         public GreaterThanOrEqualNode(IToken payload, TreeNodeFactory treeNodeFactory)
             : base(payload, treeNodeFactory)

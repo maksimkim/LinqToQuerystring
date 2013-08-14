@@ -7,7 +7,7 @@
     using DataTypes;
     using Base;
 
-    public class TopNode : SingleChildNode
+    public class TopNode : UnaryNode
     {
         public TopNode(IToken payload, TreeNodeFactory treeNodeFactory)
             : base(payload, treeNodeFactory)

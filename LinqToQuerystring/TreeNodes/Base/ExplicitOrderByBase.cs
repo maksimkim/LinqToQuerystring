@@ -4,7 +4,7 @@
     using System.Linq.Expressions;
     using Antlr.Runtime;
 
-    public abstract class ExplicitOrderByBase : SingleChildNode
+    public abstract class ExplicitOrderByBase : UnaryNode
     {
         protected ExplicitOrderByBase(IToken payload, TreeNodeFactory treeNodeFactory)
             : base(payload, treeNodeFactory)

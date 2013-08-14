@@ -5,9 +5,9 @@
 
     using Antlr.Runtime;
 
-    public abstract class TwoChildNode : TreeNode
+    public abstract class BinaryNode : TreeNode
     {
-        protected TwoChildNode(IToken payload, TreeNodeFactory treeNodeFactory)
+        protected BinaryNode(IToken payload, TreeNodeFactory treeNodeFactory)
             : base(payload, treeNodeFactory)
         {
         }

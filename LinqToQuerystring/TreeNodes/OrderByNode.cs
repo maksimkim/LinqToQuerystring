@@ -13,7 +13,7 @@
     {
         public IEnumerable<SortDescription> BuildSorts(Type elementType)
         {
-            foreach (var child in Children.Cast<SingleChildNode>())
+            foreach (var child in Children.Cast<UnaryNode>())
             {
                 bool desc;
 

@@ -7,7 +7,7 @@
 
     using LinqToQuerystring.TreeNodes.Base;
 
-    public class ToLowerNode : SingleChildNode
+    public class ToLowerNode : UnaryNode
     {
         public ToLowerNode(IToken payload, TreeNodeFactory treeNodeFactory)
             : base(payload, treeNodeFactory)

@@ -7,7 +7,7 @@
     using DataTypes;
     using Base;
 
-    public class SkipNode : SingleChildNode
+    public class SkipNode : UnaryNode
     {
         public SkipNode(IToken payload, TreeNodeFactory treeNodeFactory)
             : base(payload, treeNodeFactory)
