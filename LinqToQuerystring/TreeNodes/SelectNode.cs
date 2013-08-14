@@ -12,29 +12,37 @@
 
     public class SelectNode : SingleChildNode
     {
-        public SelectNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public SelectNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        public LambdaExpression BuildProjection(Type elementType)
         {
-            var fixedexpr = Expression.Call(typeof(Queryable), "Cast", new[] { inputType }, query.Expression);
+            var parameter = Expression.Parameter(elementType, "o");
 
-            query = query.Provider.CreateQuery(fixedexpr);
+            var addMethod = typeof(Dictionary<string, object>).GetMethod("Add");
 
-            var parameter = item ?? Expression.Parameter(inputType, "o");
-            Expression childExpression = fixedexpr;
-
-            MethodInfo addMethod = typeof(Dictionary<string, object>).GetMethod("Add");
             var elements = this.ChildNodes.Select(
-                o => Expression.ElementInit(addMethod, Expression.Constant(o.Text), Expression.Convert(o.BuildLinqExpression(query, childExpression, parameter), typeof(object))));
+                o => Expression.ElementInit(
+                    addMethod, Expression.Constant(o.Text), 
+                    Expression.Convert(o.BuildLinqExpression(parameter), typeof(object))
+                )
+            );
 
             var newDictionary = Expression.New(typeof(Dictionary<string, object>));
+
             var init = Expression.ListInit(newDictionary, elements);
 
-            var lambda = Expression.Lambda(init, new[] { parameter as ParameterExpression });
-            return Expression.Call(typeof(Queryable), "Select", new[] { query.ElementType, typeof(Dictionary<string, object>) }, query.Expression, lambda);
+            var lambda = Expression.Lambda(init, new[] { parameter });
+
+            return lambda;
+        }
+
+
+        public override Expression BuildLinqExpression(Expression item = null)
+        {
+            throw new NotSupportedException("Select is just a placeholder and should be handled differently in Extensions.cs");
         }
 
         public override int CompareTo(TreeNode other)

@@ -10,17 +10,17 @@
 
     public class AliasNode : TreeNode
     {
-        public AliasNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public AliasNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        public override Expression BuildLinqExpression(Expression item = null)
         {
             var child = this.ChildNodes.FirstOrDefault();
             if (child != null)
             {
-                return child.BuildLinqExpression(query, expression, item);
+                return child.BuildLinqExpression(item);
             }
 
             return item;

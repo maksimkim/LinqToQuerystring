@@ -1,7 +1,6 @@
 ﻿namespace LinqToQuerystring.TreeNodes
 {
     using System;
-    using System.Linq;
     using System.Linq.Expressions;
 
     using Antlr.Runtime;
@@ -10,16 +9,16 @@
 
     public class AndNode : TwoChildNode
     {
-        public AndNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public AndNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        public override Expression BuildLinqExpression(Expression item = null)
         {
             return Expression.And(
-                this.LeftNode.BuildLinqExpression(query, expression, item),
-                this.RightNode.BuildLinqExpression(query, expression, item));
+                this.LeftNode.BuildLinqExpression(item),
+                this.RightNode.BuildLinqExpression(item));
         }
     }
 }

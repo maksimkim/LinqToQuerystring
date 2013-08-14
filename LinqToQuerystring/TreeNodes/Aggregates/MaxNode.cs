@@ -11,14 +11,14 @@
 
     public class MaxNode : TreeNode
     {
-        public MaxNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public MaxNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        public override Expression BuildLinqExpression(Expression item = null)
         {
-            var property = this.ChildNodes.ElementAt(0).BuildLinqExpression(query, expression, item);
+            var property = this.ChildNodes.ElementAt(0).BuildLinqExpression(item);
 
             var underlyingType = property.Type;
             if (typeof(IEnumerable).IsAssignableFrom(property.Type) && property.Type.GetGenericArguments().Any())

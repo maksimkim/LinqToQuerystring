@@ -1,7 +1,6 @@
 ﻿namespace LinqToQuerystring.TreeNodes
 {
     using System;
-    using System.Linq;
     using System.Linq.Expressions;
 
     using Antlr.Runtime;
@@ -10,14 +9,15 @@
 
     public class NotNode : SingleChildNode
     {
-        public NotNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public NotNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        public override Expression BuildLinqExpression(Expression item = null)
         {
-            var childExpression = this.ChildNode.BuildLinqExpression(query, expression, item);
+            var childExpression = this.ChildNode.BuildLinqExpression(item);
+
             if (!typeof(bool).IsAssignableFrom(childExpression.Type))
             {
                 childExpression = Expression.Convert(childExpression, typeof(bool));

@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>LinqToQuerystring</RootNamespace>
     <AssemblyName>LinqToQuerystring</AssemblyName>
-    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
@@ -23,6 +23,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -31,6 +32,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Antlr3.Runtime, Version=3.4.1.9004, Culture=neutral, PublicKeyToken=eb42632606e9261f, processorArchitecture=MSIL">
@@ -46,6 +48,7 @@
     <Compile Include="Extensions.cs" />
     <Compile Include="LinqToQuerystringLexer.cs" />
     <Compile Include="LinqToQuerystringParser.cs" />
+    <Compile Include="SortDescription.cs" />
     <Compile Include="TreeNodes\Aggregates\AnyNode.cs" />
     <Compile Include="TreeNodes\Aggregates\AllNode.cs" />
     <Compile Include="TreeNodes\Aggregates\SumNode.cs" />
@@ -57,12 +60,12 @@
     <Compile Include="TreeNodes\AndNode.cs" />
     <Compile Include="TreeNodes\AscNode.cs" />
     <Compile Include="TreeNodes\Base\ExplicitOrderByBase.cs" />
-    <Compile Include="TreeNodes\Base\QueryModifier.cs" />
     <Compile Include="TreeNodes\Base\SingleChildNode.cs" />
     <Compile Include="TreeNodes\Base\TreeNode.cs" />
     <Compile Include="TreeNodes\Base\TwoChildNode.cs" />
     <Compile Include="TreeNodes\DataTypes\BoolNode.cs" />
     <Compile Include="TreeNodes\DataTypes\ByteNode.cs" />
+    <Compile Include="TreeNodes\DataTypes\ConstantNode.cs" />
     <Compile Include="TreeNodes\NullNode.cs" />
     <Compile Include="TreeNodes\DataTypes\GuidNode.cs" />
     <Compile Include="TreeNodes\DataTypes\SingleNode.cs" />

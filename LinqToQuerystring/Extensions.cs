@@ -5,12 +5,13 @@
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
-
+    using System.Linq.Expressions;
     using Antlr.Runtime;
     using Antlr.Runtime.Tree;
 
     using LinqToQuerystring.TreeNodes;
     using LinqToQuerystring.TreeNodes.Base;
+    using TreeNodes.DataTypes;
 
     public static class Extensions
     {
@@ -69,7 +70,10 @@
             var lexer = new LinqToQuerystringLexer(input);
             var tokStream = new CommonTokenStream(lexer);
 
-            var parser = new LinqToQuerystringParser(tokStream) { TreeAdaptor = new TreeNodeFactory(inputType, forceDynamicProperties) };
+            var parser = new LinqToQuerystringParser(tokStream)
+            {
+                TreeAdaptor = new TreeNodeFactory(inputType, forceDynamicProperties)
+            };
 
             var result = parser.prog();
 
@@ -84,7 +88,7 @@
 
                 if (singleNode is SelectNode)
                 {
-                    return ProjectQuery(queryResult, constrainedQuery, singleNode);
+                    return Apply(constrainedQuery, "Select", ((SelectNode)singleNode).BuildProjection(constrainedQuery.ElementType), typeof(Dictionary<string, object>));
                 }
 
                 return PackageResults(queryResult, constrainedQuery);
@@ -105,7 +109,7 @@
                 var selectNode = children.FirstOrDefault(o => o is SelectNode);
                 if (selectNode != null)
                 {
-                    constrainedQuery = ProjectQuery(queryResult, constrainedQuery, selectNode);
+                    constrainedQuery = Apply(constrainedQuery, "Select", ((SelectNode)selectNode).BuildProjection(constrainedQuery.ElementType), typeof(Dictionary<string, object>));
                 }
 
                 var inlineCountNode = children.FirstOrDefault(o => o is InlineCountNode);
@@ -122,72 +126,76 @@
         {
             var type = queryResult.Provider.GetType().Name;
 
-            var mappings = (!string.IsNullOrEmpty(type) && Configuration.CustomNodes.ContainsKey(type))
-                               ? Configuration.CustomNodes[type]
-                               : null;
+            var mappings = 
+                (!string.IsNullOrEmpty(type) && Configuration.CustomNodes.ContainsKey(type))
+                ? Configuration.CustomNodes[type]
+                : null;
 
             if (mappings != null)
             {
                 node = mappings.MapNode(node, queryResult.Expression);
             }
 
-            if (!(node is TopNode) && !(node is SkipNode))
-            {
-                var modifier = node as QueryModifier;
-                if (modifier != null)
-                {
-                    queryResult = modifier.ModifyQuery(queryResult);
-                }
-                else
-                {
-                    queryResult = queryResult.Provider.CreateQuery(
-                        node.BuildLinqExpression(queryResult, queryResult.Expression));
-                }
-            }
+            var elementType = constrainedQuery.ElementType;
 
-            var queryModifier = node as QueryModifier;
-            if (queryModifier != null)
+            var filterNode = node as FilterNode;
+            var orderByNode = node as OrderByNode;
+            var skipNode = node as SkipNode;
+            var topNode = node as TopNode;
+            var expandNode = node as ExpandNode;
+
+            if (filterNode != null)
             {
-                constrainedQuery = queryModifier.ModifyQuery(constrainedQuery);
+                var filter = filterNode.BuildFilter(elementType);
+                
+                queryResult = Apply(queryResult, "Where", filter);
+
+                constrainedQuery = Apply(constrainedQuery, "Where", filter);
             }
-            else
+            else if (orderByNode != null)
             {
-                constrainedQuery =
-                    constrainedQuery.Provider.CreateQuery(
-                        node.BuildLinqExpression(constrainedQuery, constrainedQuery.Expression));
+                var first = true;
+
+                foreach (var child in orderByNode.BuildSorts(elementType))
+                {
+                    var method = child.Desc ? (first ? "OrderByDescending" : "ThenByDescending") : (first ? "OrderBy" : "ThenBy");
+
+                    constrainedQuery = Apply(constrainedQuery, method, child.Expression, child.Expression.ReturnType);
+                    
+                    first = false;
+                }
+            }
+            else if (skipNode != null)
+            {
+                constrainedQuery = Apply(constrainedQuery, "Skip", Expression.Constant(skipNode.Value, typeof(int)));
+            }
+            else if (topNode != null)
+            {
+                constrainedQuery = Apply(constrainedQuery, "Take", Expression.Constant(topNode.Value, typeof(int)));
+            }
+            else if (expandNode != null)
+            {
+                var expands = expandNode.BuildExpands(elementType).ToList();
             }
         }
 
-        private static IQueryable ProjectQuery(IQueryable query, IQueryable constrainedQuery, TreeNode node)
+        private static IQueryable Apply(IQueryable source, string method, Expression arg, Type typeArg = null)
         {
-            // TODO: Find a solution to the following:
-            // Currently the only way to perform the SELECT part of the query is to call ToList and then project onto a dictionary. Two main problems:
-            // 1. Linq to Entities does not support projection onto list initialisers with more than one value
-            // 2. We cannot build an anonymous type using expression trees as there is compiler magic that must happen.
-            // There is a solution involving reflection.emit, but is it worth it? Not sure...
+            var typeArgs = new Type[typeArg == null ? 1 : 2];
+            
+            typeArgs[0] = source.ElementType;
+            
+            if (typeArg != null)
+                typeArgs[1] = typeArg;
 
-            var result = constrainedQuery.GetEnumeratedQuery().AsQueryable();
-            return
-                result.Provider.CreateQuery<Dictionary<string, object>>(
-                    node.BuildLinqExpression(result, result.Expression));
-
+            return source.Provider.CreateQuery(
+                Expression.Call(typeof(Queryable), method, typeArgs, source.Expression, arg)
+            );
         }
 
         private static object PackageResults(IQueryable query, IQueryable constrainedQuery)
         {
-            var result = query.GetEnumeratedQuery();
-            return new Dictionary<string, object> { { "Count", result.Count() }, { "Results", constrainedQuery } };
-        }
-
-        public static IEnumerable<object> GetEnumeratedQuery(this IQueryable query)
-        {
-            return Iterate(query.GetEnumerator()).Cast<object>().ToList();
-        }
-
-        static IEnumerable Iterate(this IEnumerator iterator)
-        {
-            while (iterator.MoveNext())
-                yield return iterator.Current;
+            return new Dictionary<string, object> { { "Count", query.Cast<object>().Count() }, { "Results", constrainedQuery } };
         }
     }
 }

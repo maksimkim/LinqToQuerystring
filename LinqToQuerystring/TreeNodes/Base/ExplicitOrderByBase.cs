@@ -1,17 +1,25 @@
 ﻿namespace LinqToQuerystring.TreeNodes.Base
 {
-    using System;
-
+    using System.Diagnostics;
+    using System.Linq.Expressions;
     using Antlr.Runtime;
 
-    public abstract class ExplicitOrderByBase : TreeNode
+    public abstract class ExplicitOrderByBase : SingleChildNode
     {
-        protected ExplicitOrderByBase(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        protected ExplicitOrderByBase(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
-            this.IsFirstChild = false;
         }
 
-        public bool IsFirstChild { get; set; }
+        public override Expression BuildLinqExpression(Expression item = null)
+        {
+            var childExpression = ChildNode.BuildLinqExpression(item);
+
+            Debug.Assert(childExpression != null, "childExpression should never be null");
+
+            var lambda = Expression.Lambda(childExpression, new[] { item as ParameterExpression });
+
+            return lambda;
+        }
     }
 }

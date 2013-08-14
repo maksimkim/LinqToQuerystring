@@ -12,14 +12,14 @@
 
     public class AnyNode : TreeNode
     {
-        public AnyNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public AnyNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        public override Expression BuildLinqExpression(Expression item = null)
         {
-            var property = this.ChildNodes.ElementAt(0).BuildLinqExpression(query, expression, item);
+            var property = this.ChildNodes.ElementAt(0).BuildLinqExpression(item);
             var alias = this.ChildNodes.ElementAt(1).Text;
             var filter = this.ChildNodes.ElementAt(2);
 
@@ -39,7 +39,7 @@
             var parameter = Expression.Parameter(underlyingType, alias);
 
             var lambda = Expression.Lambda(
-                filter.BuildLinqExpression(query, expression, parameter), new[] { parameter });
+                filter.BuildLinqExpression(parameter), new[] { parameter });
 
             return Expression.Call(typeof(Enumerable), "Any", new[] { underlyingType }, property, lambda);
         }

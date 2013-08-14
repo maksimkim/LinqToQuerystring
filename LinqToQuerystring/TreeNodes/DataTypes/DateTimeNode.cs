@@ -2,28 +2,23 @@
 {
     using System;
     using System.Globalization;
-    using System.Linq;
-    using System.Linq.Expressions;
-
     using Antlr.Runtime;
 
-    using LinqToQuerystring.TreeNodes.Base;
-
-    public class DateTimeNode : TreeNode
+    public class DateTimeNode : ConstantNode<DateTime>
     {
-        public DateTimeNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public DateTimeNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        protected override DateTime ParseValue(string text)
         {
-            var dateText = this.Text
+            var dateText = text
                 .Replace("datetime'", string.Empty)
                 .Replace("'", string.Empty)
                 .Replace(".", ":");
 
-            return Expression.Constant(DateTime.Parse(dateText, null, DateTimeStyles.RoundtripKind));
+            return DateTime.Parse(dateText, null, DateTimeStyles.RoundtripKind);
         }
     }
 }

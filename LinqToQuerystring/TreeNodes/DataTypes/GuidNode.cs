@@ -1,24 +1,19 @@
 ﻿namespace LinqToQuerystring.TreeNodes.DataTypes
 {
     using System;
-    using System.Linq;
-    using System.Linq.Expressions;
-
     using Antlr.Runtime;
 
-    using LinqToQuerystring.TreeNodes.Base;
-
-    public class GuidNode : TreeNode
+    public class GuidNode : ConstantNode<Guid>
     {
-        public GuidNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public GuidNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        protected override Guid ParseValue(string text)
         {
-            var guidText = this.Text.Replace("guid'", string.Empty).Replace("'", string.Empty);
-            return Expression.Constant(new Guid(guidText));
+            var guidText = text.Replace("guid'", string.Empty).Replace("'", string.Empty);
+            return new Guid(guidText);
         }
     }
 }

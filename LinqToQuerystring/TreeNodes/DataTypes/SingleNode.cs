@@ -2,23 +2,18 @@
 {
     using System;
     using System.Globalization;
-    using System.Linq;
-    using System.Linq.Expressions;
-
     using Antlr.Runtime;
 
-    using LinqToQuerystring.TreeNodes.Base;
-
-    public class SingleNode : TreeNode
+    public class SingleNode : ConstantNode<float>
     {
-        public SingleNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public SingleNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        protected override float ParseValue(string text)
         {
-            return Expression.Constant(Convert.ToSingle(this.Text.Replace("f", string.Empty), CultureInfo.InvariantCulture));
+            return Convert.ToSingle(text.Replace("f", string.Empty), CultureInfo.InvariantCulture);
         }
     }
 }

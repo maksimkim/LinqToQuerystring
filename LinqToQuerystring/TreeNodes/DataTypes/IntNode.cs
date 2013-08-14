@@ -1,23 +1,19 @@
 ﻿namespace LinqToQuerystring.TreeNodes.DataTypes
 {
     using System;
-    using System.Linq;
-    using System.Linq.Expressions;
-
+    using System.Globalization;
     using Antlr.Runtime;
 
-    using LinqToQuerystring.TreeNodes.Base;
-
-    public class IntNode : TreeNode
+    public class IntNode : ConstantNode<int>
     {
-        public IntNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public IntNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        protected override int ParseValue(string text)
         {
-            return Expression.Constant(Convert.ToInt32(this.Text));
+            return Convert.ToInt32(text, CultureInfo.InvariantCulture);
         }
     }
 }

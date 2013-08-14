@@ -1,22 +1,35 @@
 ﻿namespace LinqToQuerystring.TreeNodes
 {
     using System;
+    using System.Collections.Generic;
     using System.Linq;
-
+    using System.Linq.Expressions;
     using Antlr.Runtime;
 
-    using LinqToQuerystring.TreeNodes.Base;
+    using Base;
 
-    public class ExpandNode : QueryModifier
+    public class ExpandNode : TreeNode
     {
-        public ExpandNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public ExpandNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override IQueryable ModifyQuery(IQueryable query)
+        public IEnumerable<LambdaExpression> BuildExpands(Type elementType)
         {
-            throw new NotSupportedException("The Expand query option is not supported by this provder");
+            return 
+                ChildNodes
+                .Select(child =>
+                {
+                    var param = Expression.Parameter(elementType, "o");
+                    return Expression.Lambda(child.BuildLinqExpression(param), param);
+                });
+        }
+
+        public override Expression BuildLinqExpression(Expression item = null)
+        {
+            throw new NotSupportedException(
+                "Orderby is just a placeholder and should be handled differently in Extensions.cs");
         }
 
         public override int CompareTo(TreeNode other)

@@ -1,7 +1,6 @@
 ﻿namespace LinqToQuerystring.TreeNodes
 {
     using System;
-    using System.Linq;
     using System.Linq.Expressions;
 
     using Antlr.Runtime;
@@ -10,18 +9,21 @@
 
     public class FilterNode : SingleChildNode
     {
-        public FilterNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public FilterNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        public LambdaExpression BuildFilter(Type itemType)
         {
-            var parameter = item ?? Expression.Parameter(inputType, "o");
-            var lambda = Expression.Lambda(
-                this.ChildNode.BuildLinqExpression(query, expression, parameter), new[] { parameter as ParameterExpression });
+            var parameter = Expression.Parameter(itemType, "o");
 
-            return Expression.Call(typeof(Queryable), "Where", new[] { query.ElementType }, query.Expression, lambda);
+            return Expression.Lambda(this.ChildNode.BuildLinqExpression(parameter), parameter);
+        }
+
+        public override Expression BuildLinqExpression(Expression item)
+        {
+            throw new NotSupportedException("Filter is just a placeholder and should be handled differently in Extensions.cs");
         }
 
         public override int CompareTo(TreeNode other)

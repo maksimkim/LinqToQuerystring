@@ -10,14 +10,14 @@
 
     public class SumNode : TreeNode
     {
-        public SumNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public SumNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        public override Expression BuildLinqExpression(Expression item = null)
         {
-            var property = this.ChildNodes.ElementAt(0).BuildLinqExpression(query, expression, item);
+            var property = this.ChildNodes.ElementAt(0).BuildLinqExpression(item);
             return Expression.Call(typeof(Enumerable), "Sum", null, property);
         }
     }

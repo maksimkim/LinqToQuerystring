@@ -1,23 +1,19 @@
 ﻿namespace LinqToQuerystring.TreeNodes.DataTypes
 {
     using System;
-    using System.Linq;
-    using System.Linq.Expressions;
-
+    using System.Globalization;
     using Antlr.Runtime;
 
-    using LinqToQuerystring.TreeNodes.Base;
-
-    public class BoolNode : TreeNode
+    public class BoolNode : ConstantNode<bool>
     {
-        public BoolNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public BoolNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        protected override bool ParseValue(string text)
         {
-            return Expression.Constant(Convert.ToBoolean(this.Text));
+            return Convert.ToBoolean(text, CultureInfo.InvariantCulture);
         }
     }
 }

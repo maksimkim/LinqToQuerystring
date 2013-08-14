@@ -7,40 +7,38 @@
 
     using Antlr.Runtime;
 
-    using LinqToQuerystring.TreeNodes.Base;
+    using Base;
 
-    public class OrderByNode : QueryModifier
+    public class OrderByNode : TreeNode
     {
-        public OrderByNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public IEnumerable<SortDescription> BuildSorts(Type elementType)
+        {
+            foreach (var child in Children.Cast<SingleChildNode>())
+            {
+                bool desc;
+
+                if (child is AscNode)
+                    desc = false;
+                else if (child is DescNode)
+                    desc = true;
+                else
+                    throw new InvalidOperationException();
+
+                var orderExpression = (LambdaExpression)child.BuildLinqExpression(Expression.Parameter(elementType, "o"));
+
+                yield return new SortDescription(orderExpression, desc);
+            }
+        }
+        
+        public OrderByNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        public override Expression BuildLinqExpression(Expression item = null)
         {
             throw new NotSupportedException(
                 "Orderby is just a placeholder and should be handled differently in Extensions.cs");
-        }
-
-        public override IQueryable ModifyQuery(IQueryable query)
-        {
-            var queryresult = query;
-            var orderbyChildren = this.Children.Cast<ExplicitOrderByBase>();
-
-            if (!queryresult.Provider.GetType().Name.Contains("DbQueryProvider") && !queryresult.Provider.GetType().Name.Contains("MongoQueryProvider"))
-            {
-                orderbyChildren = orderbyChildren.Reverse();
-            }
-
-            var explicitOrderByNodes = orderbyChildren as IList<ExplicitOrderByBase> ?? orderbyChildren.ToList();
-            explicitOrderByNodes.First().IsFirstChild = true;
-
-            foreach (var child in explicitOrderByNodes)
-            {
-                queryresult = queryresult.Provider.CreateQuery(child.BuildLinqExpression(queryresult, queryresult.Expression));
-            }
-
-            return queryresult;
         }
 
         public override int CompareTo(TreeNode other)

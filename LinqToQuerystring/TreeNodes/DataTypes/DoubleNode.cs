@@ -2,23 +2,18 @@
 {
     using System;
     using System.Globalization;
-    using System.Linq;
-    using System.Linq.Expressions;
-
     using Antlr.Runtime;
 
-    using LinqToQuerystring.TreeNodes.Base;
-
-    public class DoubleNode : TreeNode
+    public class DoubleNode : ConstantNode<double>
     {
-        public DoubleNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public DoubleNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        protected override double ParseValue(string text)
         {
-            return Expression.Constant(Convert.ToDouble(this.Text, CultureInfo.InvariantCulture));
+            return Convert.ToDouble(text, CultureInfo.InvariantCulture);
         }
     }
 }

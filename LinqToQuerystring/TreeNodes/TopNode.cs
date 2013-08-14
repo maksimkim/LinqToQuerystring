@@ -1,28 +1,27 @@
 ﻿namespace LinqToQuerystring.TreeNodes
 {
     using System;
-    using System.Linq;
     using System.Linq.Expressions;
 
     using Antlr.Runtime;
-
-    using LinqToQuerystring.TreeNodes.Base;
+    using DataTypes;
+    using Base;
 
     public class TopNode : SingleChildNode
     {
-        public TopNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
-            : base(inputType, payload, treeNodeFactory)
+        public TopNode(IToken payload, TreeNodeFactory treeNodeFactory)
+            : base(payload, treeNodeFactory)
         {
         }
 
-        public override Expression BuildLinqExpression(IQueryable query, Expression expression, Expression item = null)
+        public int Value
         {
-            return Expression.Call(
-                typeof(Queryable),
-                "Take",
-                new[] { query.ElementType },
-                query.Expression,
-                this.ChildNode.BuildLinqExpression(query, expression));
+            get { return (ChildNode as ConstantNode<int>).Value; }
+        }
+
+        public override Expression BuildLinqExpression(Expression item = null)
+        {
+            throw new NotSupportedException("Top is just a placeholder and should be handled differently in Extensions.cs");
         }
 
         public override int CompareTo(TreeNode other)

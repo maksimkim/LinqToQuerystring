@@ -2,7 +2,6 @@
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq;
     using System.Linq.Expressions;
 
     using Antlr.Runtime;
@@ -10,16 +9,13 @@
 
     public abstract class TreeNode : CommonTree, IComparable<TreeNode>
     {
-        protected internal readonly Type inputType;
-
         protected internal readonly IToken payload;
 
         protected internal readonly TreeNodeFactory factory;
 
-        protected TreeNode(Type inputType, IToken payload, TreeNodeFactory treeNodeFactory)
+        protected TreeNode(IToken payload, TreeNodeFactory treeNodeFactory)
             : base(payload)
         {
-            this.inputType = inputType;
             this.payload = payload;
             this.factory = treeNodeFactory;
         }
@@ -55,10 +51,11 @@
 
                 return result;
             }
+
+            
         }
 
-        public abstract Expression BuildLinqExpression(
-            IQueryable query, Expression expression, Expression item = null);
+        public abstract Expression BuildLinqExpression(Expression item = null);
 
         public virtual int CompareTo(TreeNode other)
         {
