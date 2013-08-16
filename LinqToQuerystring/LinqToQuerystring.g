@@ -4,6 +4,7 @@ options
 {
 	language=CSharp3;
 	output=AST;
+
 }
 
 tokens {
@@ -31,7 +32,7 @@ public override void ReportError(RecognitionException e) {
 }
 
 public prog
-	:	(param ('&'! param)*)*;
+	:	(param (AMP! param)*)*;
 
 param	:	(orderby | top | skip | filter | select | inlinecount | expand);
 
@@ -45,10 +46,10 @@ filter
 	:	FILTER^ filterexpression[false];
 	
 select
-	:	SELECT^ propertyname[false] (','! propertyname[false])*;
+	:	SELECT^ propertyname[false] (COMMA! propertyname[false])*;
 			
 expand
-	:	EXPAND^ propertyname[false] (','! propertyname[false])*;
+	:	EXPAND^ propertyname[false] (COMMA! propertyname[false])*;
 	
 inlinecount
 	:	INLINECOUNT^ ALLPAGES
@@ -61,8 +62,8 @@ orexpression[bool subquery]
 	:	andexpression[subquery] (SPACE! AND^ SPACE! andexpression[subquery])*;
 	
 andexpression[bool subquery]
-	:	NOT^ SPACE ('(' filterexpression[subquery] ')' | booleanexpression[subquery])
-	|	('(' filterexpression[subquery] ')' | booleanexpression[subquery]);
+	:	(NOT SPACE (OP exp=filterexpression[subquery] CP | exp=booleanexpression[subquery])) -> ^(NOT $exp)
+	|	(OP exp=filterexpression[subquery] CP | exp=booleanexpression[subquery]) -> $exp;
 		
 booleanexpression[bool subquery]
 	:	atom1=atom[subquery] (
@@ -76,26 +77,35 @@ atom[bool subquery]
 	|	constant
 	|	accessor[subquery];
 	
-functioncall[bool subquery]
-	:	function^ '(' atom[subquery] (',' atom[subquery])* ')';
-	
+functioncall[bool subquery]:
+		(function OP atom[subquery] (COMMA atom[subquery])* CP) -> ^(function atom+)
+		| (fun=SUBSTRINGOF OP arg=atom[subquery] COMMA str=atom[subquery] CP)
+			-> ^($fun $str $arg)
+		;
+
 accessor[bool subquery]:
-		(propertyname[subquery] -> propertyname) (
-			'/' (func=ANY | func=ALL | func=COUNT | func=MAX | func=MIN | func=SUM | func=AVERAGE) 
-			'(' (
-				(id=IDENTIFIER ':' SPACE filterexpression[true]) -> ^($func $accessor ALIAS[$id] filterexpression)
-				| -> ^($func $accessor) )
-			')' 
+		(propertyname[subquery] -> propertyname) 
+		(
+			SLASH (func=ANY | func=ALL | func=COUNT | func=MAX | func=MIN | func=SUM | func=AVERAGE) 
+			OP (
+					(lambaexpression) -> ^($func $accessor lambaexpression)
+					| -> ^($func $accessor) 
+				)
+			CP 
 		)?;
-	
+
+lambaexpression
+	:	(id=IDENTIFIER LAMBDA SPACE filterexpression[true]) -> ^(LAMBDA filterexpression ALIAS[$id])
+	;
+
 function
-	:	STARTSWITH | ENDSWITH | SUBSTRINGOF | TOLOWER;
+	:	STARTSWITH | ENDSWITH | INDEXOF | TOLOWER | TOUPPER | LENGTH | TRIM;
 		
 orderby
 	:	ORDERBY^ orderbylist;
 	
 orderbylist
-	:	orderpropertyname (','! orderpropertyname)*;
+	:	orderpropertyname (COMMA! orderpropertyname)*;
 
 orderpropertyname
 	:	propertyname[false] (
@@ -106,7 +116,7 @@ orderpropertyname
 constant:	(INT^ | BOOL^ | STRING^ | DATETIME^ | LONG^ | SINGLE^ | DOUBLE^ | GUID^ | BYTE^ | NULL^);
 
 propertyname[bool subquery]
-	:	(identifierpart[subquery] -> identifierpart) ('/' next=subpropertyname[false] -> ^($propertyname $next))?;
+	:	(identifierpart[subquery] -> identifierpart) (SLASH next=subpropertyname[false] -> ^($next $propertyname))?;
 
 subpropertyname[bool subquery]
 	:	propertyname[false];
@@ -186,12 +196,24 @@ STARTSWITH
 	
 ENDSWITH
 	:	'endswith';
+
+INDEXOF
+	:	'indexof';
 	
 SUBSTRINGOF
 	:	'substringof';
 	
 TOLOWER
 	:	'tolower';
+
+TOUPPER
+	:	'toupper';
+
+LENGTH
+	:	'length';
+
+TRIM
+	:	'trim';
 	
 ANY	: 	'any';
 	
@@ -218,6 +240,18 @@ SINGLE	:	('-')? ('0'..'9')+ '.' ('0'..'9')+ 'f';
 BOOL	:	('true' | 'false');
 
 NULL	:	'null';
+
+LAMBDA : ':';
+
+AMP : '&';
+
+OP : '(';
+
+CP : ')';
+
+COMMA : ',';
+
+SLASH : '/';
 
 DATETIME
 	:	'datetime\'' '0'..'9'+ '-' '0'..'9'+ '-' + '0'..'9'+ 'T' '0'..'9'+ ':' '0'..'9'+ (':' '0'..'9'+ ('.' '0'..'9'+)*)* '\'';

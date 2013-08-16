@@ -1,17 +1,12 @@
 ﻿namespace LinqToQuerystring
 {
     using System;
-    using System.Collections;
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
     using System.Linq.Expressions;
     using Antlr.Runtime;
     using Antlr.Runtime.Tree;
-
-    using LinqToQuerystring.TreeNodes;
-    using LinqToQuerystring.TreeNodes.Base;
-    using TreeNodes.DataTypes;
 
     public static class Extensions
     {
@@ -27,8 +22,8 @@
 
         public static object LinqToQuerystring(this IQueryable query, Type inputType, string queryString = "", bool forceDynamicProperties = false, int maxPageSize = -1)
         {
-            IQueryable queryResult = query;
-            IQueryable constrainedQuery = query;
+            var queryResult = query;
+            var constrainedQuery = query;
 
             if (query == null)
             {
@@ -70,116 +65,57 @@
             var lexer = new LinqToQuerystringLexer(input);
             var tokStream = new CommonTokenStream(lexer);
 
-            var parser = new LinqToQuerystringParser(tokStream)
-            {
-                TreeAdaptor = new TreeNodeFactory(inputType, forceDynamicProperties)
-            };
+            var parser = new LinqToQuerystringParser(tokStream);
 
             var result = parser.prog();
-
-            var singleNode = result.Tree as TreeNode;
-            if (singleNode != null && !(singleNode is IdentifierNode))
-            {
-                if (!(singleNode is SelectNode) && !(singleNode is InlineCountNode))
-                {
-                    BuildQuery(singleNode, ref queryResult, ref constrainedQuery);
-                    return constrainedQuery;
-                }
-
-                if (singleNode is SelectNode)
-                {
-                    return Apply(constrainedQuery, "Select", ((SelectNode)singleNode).BuildProjection(constrainedQuery.ElementType), typeof(Dictionary<string, object>));
-                }
-
-                return PackageResults(queryResult, constrainedQuery);
-            }
-
-            var tree = result.Tree as CommonTree;
-            if (tree != null)
-            {
-                var children = tree.Children.Cast<TreeNode>().ToList();
-                children.Sort();
-
-                // These should always come first
-                foreach (var node in children.Where(o => !(o is SelectNode) && !(o is InlineCountNode)))
-                {
-                    BuildQuery(node, ref queryResult, ref constrainedQuery);
-                }
-
-                var selectNode = children.FirstOrDefault(o => o is SelectNode);
-                if (selectNode != null)
-                {
-                    constrainedQuery = Apply(constrainedQuery, "Select", ((SelectNode)selectNode).BuildProjection(constrainedQuery.ElementType), typeof(Dictionary<string, object>));
-                }
-
-                var inlineCountNode = children.FirstOrDefault(o => o is InlineCountNode);
-                if (inlineCountNode != null)
-                {
-                    return PackageResults(queryResult, constrainedQuery);
-                }
-            }
-
-            return constrainedQuery;
+            
+            return ApplyQuery(result.Tree as CommonTree, ref queryResult, ref constrainedQuery, forceDynamicProperties: forceDynamicProperties);
         }
 
-        private static void BuildQuery(TreeNode node, ref IQueryable queryResult, ref IQueryable constrainedQuery)
+        private static object ApplyQuery(CommonTree tree, ref IQueryable queryResult, ref IQueryable constrainedQuery, bool forceDynamicProperties = false)
         {
-            var type = queryResult.Provider.GetType().Name;
+            if (tree == null)
+                return constrainedQuery;
 
-            var mappings = 
-                (!string.IsNullOrEmpty(type) && Configuration.CustomNodes.ContainsKey(type))
-                ? Configuration.CustomNodes[type]
-                : null;
+            var visitor = new QueryBuilder(forceDynamicProperties);
 
-            if (mappings != null)
+            var query = visitor.BuildQuery(tree, constrainedQuery.ElementType);
+
+            if (query.Filter != null)
             {
-                node = mappings.MapNode(node, queryResult.Expression);
+                queryResult = ApplyMethod(queryResult, "Where", query.Filter);
+
+                constrainedQuery = ApplyMethod(constrainedQuery, "Where", query.Filter);
             }
 
-            var elementType = constrainedQuery.ElementType;
-
-            var filterNode = node as FilterNode;
-            var orderByNode = node as OrderByNode;
-            var skipNode = node as SkipNode;
-            var topNode = node as TopNode;
-            var expandNode = node as ExpandNode;
-
-            if (filterNode != null)
-            {
-                var filter = filterNode.BuildFilter(elementType);
-                
-                queryResult = Apply(queryResult, "Where", filter);
-
-                constrainedQuery = Apply(constrainedQuery, "Where", filter);
-            }
-            else if (orderByNode != null)
+            if (query.OrderBy.Any())
             {
                 var first = true;
 
-                foreach (var child in orderByNode.BuildSorts(elementType))
+                foreach (var child in query.OrderBy)
                 {
                     var method = child.Desc ? (first ? "OrderByDescending" : "ThenByDescending") : (first ? "OrderBy" : "ThenBy");
 
-                    constrainedQuery = Apply(constrainedQuery, method, child.Expression, child.Expression.ReturnType);
-                    
+                    constrainedQuery = ApplyMethod(constrainedQuery, method, child.Expression, child.Expression.ReturnType);
+
                     first = false;
                 }
             }
-            else if (skipNode != null)
-            {
-                constrainedQuery = Apply(constrainedQuery, "Skip", Expression.Constant(skipNode.Value, typeof(int)));
-            }
-            else if (topNode != null)
-            {
-                constrainedQuery = Apply(constrainedQuery, "Take", Expression.Constant(topNode.Value, typeof(int)));
-            }
-            else if (expandNode != null)
-            {
-                var expands = expandNode.BuildExpands(elementType).ToList();
-            }
+
+            if (query.Skip.HasValue)
+                constrainedQuery = ApplyMethod(constrainedQuery, "Skip", Expression.Constant(query.Skip.Value, typeof(int)));
+
+            if (query.Top.HasValue)
+                constrainedQuery = ApplyMethod(constrainedQuery, "Take", Expression.Constant(query.Top.Value, typeof(int)));
+
+            if (query.Select != null)
+                constrainedQuery = ApplyMethod(constrainedQuery, "Select", query.Select, typeof(Dictionary<string, object>));
+           
+            
+            return query.InlineCount ? PackageResults(queryResult, constrainedQuery) : constrainedQuery;
         }
 
-        private static IQueryable Apply(IQueryable source, string method, Expression arg, Type typeArg = null)
+        private static IQueryable ApplyMethod(IQueryable source, string method, Expression arg, Type typeArg = null)
         {
             var typeArgs = new Type[typeArg == null ? 1 : 2];
             
