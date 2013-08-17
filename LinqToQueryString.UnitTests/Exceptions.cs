@@ -4,10 +4,9 @@
     using System.Linq;
 
     using LinqToQuerystring;
-    using LinqToQuerystring.Exceptions;
+    using ODataQuery.Exceptions;
 
     using Machine.Specifications;
-    using ODataQuery.Exceptions;
 
     #region Filter on String tests
 
@@ -15,7 +14,7 @@
     {
         private Because of = () => ex = Catch.Exception(() => result = edgeCaseCollection.AsQueryable().LinqToQuerystring(@"?$filter=Name eq 'Apple\Bob'"));
 
-        private It should_throw_an_exception = () => ex.ShouldBeOfType<InvalidEscapeSequenceException>();
+        private It should_throw_an_exception = () => ex.ShouldBeOfType<QueryParserException>();
     }
 
     public class When_using_gt_filter_on_a_single_string : Filtering

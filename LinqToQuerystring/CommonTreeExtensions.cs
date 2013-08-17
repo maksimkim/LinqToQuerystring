@@ -5,7 +5,7 @@
     using System.Diagnostics.Contracts;
     using System.Linq;
     using Antlr.Runtime.Tree;
-    using Exceptions;
+    using ODataQuery.Exceptions;
 
     public static class CommonTreeExtensions
     {

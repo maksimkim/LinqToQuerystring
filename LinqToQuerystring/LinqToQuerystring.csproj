@@ -48,7 +48,6 @@
     <Compile Include="Configuration.cs" />
     <Compile Include="TypeSystem\DefaultTypeBuilder.cs" />
     <Compile Include="TypeSystem\DefaultTypeInfoProvider.cs" />
-    <Compile Include="Exceptions\InvalidEscapeSequenceException.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="TypeSystem\ITypeBuilder.cs" />
     <Compile Include="TypeSystem\ITypeInfoProvider.cs" />

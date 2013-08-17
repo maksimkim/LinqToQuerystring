@@ -10,7 +10,7 @@
     using System.Linq.Expressions;
     using System.Reflection;
     using Antlr.Runtime.Tree;
-    using Exceptions;
+    using ODataQuery.Exceptions;
     using TypeSystem;
     using ODataQuery;
 

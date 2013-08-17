@@ -27,7 +27,7 @@ using ODataQuery.Exceptions;
         if (this.input.LT(1) == '\\')
         {
             //This will be an invalid escape sequence
-            throw new InvalidEscapeSequenceException("\\" + (char)e.Character);
+            throw new QueryParserException("Invalid escape sequence \\" + (char)e.Character);
         }
 
         throw e;

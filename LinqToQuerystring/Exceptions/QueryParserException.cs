@@ -1,4 +1,4 @@
-﻿namespace LinqToQuerystring.Exceptions
+﻿namespace ODataQuery.Exceptions
 {
     using System;
 
