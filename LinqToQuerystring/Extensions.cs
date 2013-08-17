@@ -11,17 +11,17 @@
 
     public static class Extensions
     {
-        public static TResult LinqToQuerystring<T, TResult>(this IQueryable<T> query, string queryString = "", bool forceDynamicProperties = false, int maxPageSize = -1)
+        public static TResult LinqToQuerystring<T, TResult>(this IQueryable<T> query, string queryString = "", int maxPageSize = -1)
         {
-            return (TResult)LinqToQuerystring(query, typeof(T), queryString, forceDynamicProperties, maxPageSize);
+            return (TResult)LinqToQuerystring(query, typeof(T), queryString, maxPageSize);
         }
 
-        public static IQueryable<T> LinqToQuerystring<T>(this IQueryable<T> query, string queryString = "", bool forceDynamicProperties = false, int maxPageSize = -1)
+        public static IQueryable<T> LinqToQuerystring<T>(this IQueryable<T> query, string queryString = "", int maxPageSize = -1)
         {
-            return (IQueryable<T>)LinqToQuerystring(query, typeof(T), queryString, forceDynamicProperties, maxPageSize);
+            return (IQueryable<T>)LinqToQuerystring(query, typeof(T), queryString, maxPageSize);
         }
 
-        public static object LinqToQuerystring(this IQueryable query, Type inputType, string queryString = "", bool forceDynamicProperties = false, int maxPageSize = -1)
+        public static object LinqToQuerystring(this IQueryable query, Type inputType, string queryString = "", int maxPageSize = -1)
         {
             var queryResult = query;
             var constrainedQuery = query;
@@ -70,17 +70,17 @@
 
             var result = parser.parse();
 
-            return ApplyQuery(result.Tree as CommonTree, ref queryResult, ref constrainedQuery, forceDynamicProperties);
+            return ApplyQuery(result.Tree as CommonTree, ref queryResult, ref constrainedQuery);
         }
 
-        private static object ApplyQuery(CommonTree tree, ref IQueryable queryResult, ref IQueryable constrainedQuery, bool forceDynamicProperties = false)
+        private static object ApplyQuery(CommonTree tree, ref IQueryable queryResult, ref IQueryable constrainedQuery)
         {
             if (tree == null)
                 return constrainedQuery;
 
             var visitor = new QueryBuilder(new DefaultTypeInfoProvider(), new DefaultTypeBuilder());
 
-            var query = visitor.BuildQuery(tree, constrainedQuery.ElementType, forceDynamicProperties);
+            var query = visitor.Build(tree, constrainedQuery.ElementType);
 
             if (query.Filter != null)
             {

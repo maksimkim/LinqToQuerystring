@@ -15,22 +15,19 @@
 
     public class QueryBuilder
     {
-        private readonly ITypeInfoProvider _typeInfoProvider;
-
-        private readonly ITypeBuilder _typeBuilder;
-
         private class VisitContext
         {
             public Expression Param { get; private set; }
 
-            public bool ForceDynamicProperties { get; private set; }
-
-            public VisitContext(Expression param, bool forceDynamicProperties)
+            public VisitContext(Expression param)
             {
                 Param = param;
-                ForceDynamicProperties = forceDynamicProperties;
             }
         }
+
+        private readonly ITypeInfoProvider _typeInfoProvider;
+
+        private readonly ITypeBuilder _typeBuilder;
 
         private readonly Func<CommonTree, Expression[], VisitContext, Expression>[] _visitors = new Func<CommonTree, Expression[], VisitContext, Expression>[65];
 
@@ -198,7 +195,7 @@
             _binaries[ODataQueryLexer.BOP_AND - BoolOpShift] = Expression.And;
         }
 
-        public QueryModel BuildQuery(CommonTree tree, Type itemType, bool forceDynamicProperties = false)
+        public QueryModel Build(CommonTree tree, Type itemType)
         {
             var result = new QueryModel();
 
@@ -207,16 +204,16 @@
                 switch (node.Type)
                 {
                     case ODataQueryLexer.FILTER:
-                        result.Filter = VisitFilter(node, itemType, forceDynamicProperties);
+                        result.Filter = VisitFilter(node, itemType);
                         break;
                     case ODataQueryLexer.ORDERBY:
-                        result.OrderBy = VisitOrderBy(node, itemType, forceDynamicProperties).ToArray();
+                        result.OrderBy = VisitOrderBy(node, itemType).ToArray();
                         break;
                     case ODataQueryLexer.EXPAND:
-                        result.Expand = VisitExpand(node, itemType, forceDynamicProperties).ToArray();
+                        result.Expand = VisitExpand(node, itemType).ToArray();
                         break;
                     case ODataQueryLexer.SELECT:
-                        result.Select = VisitSelect(node, itemType, forceDynamicProperties);
+                        result.Select = VisitSelect(node, itemType);
                         break;
                     case ODataQueryLexer.SKIP:
                         result.Skip = VisitSkip(node);
@@ -236,11 +233,11 @@
             return result;
         }
 
-        public LambdaExpression VisitFilter(CommonTree node, Type itemType, bool forceDynamicProperties)
+        public LambdaExpression VisitFilter(CommonTree node, Type itemType)
         {
             var param = Expression.Parameter(itemType, "_");
             
-            var body = Visit(node.Child(), new VisitContext(param, forceDynamicProperties));
+            var body = Visit(node.Child(), new VisitContext(param));
 
             var filter = Expression.Lambda(body, param);
 
@@ -249,7 +246,7 @@
             return filter;
         }
 
-        public IEnumerable<SortDescription> VisitOrderBy(CommonTree node, Type itemType, bool forceDynamicProperties)
+        public IEnumerable<SortDescription> VisitOrderBy(CommonTree node, Type itemType)
         {
             Contract.Assert(node.ChildCount > 0);
 
@@ -260,7 +257,7 @@
                 
                 var param = Expression.Parameter(itemType, "_");
                 
-                var body = Visit(child.Child(), new VisitContext(param, forceDynamicProperties));
+                var body = Visit(child.Child(), new VisitContext(param));
 
                 var accessor = Expression.Lambda(body, param);
 
@@ -268,7 +265,7 @@
             }
         }
 
-        public IEnumerable<LambdaExpression> VisitExpand(CommonTree node, Type itemType, bool forceDynamicProperties)
+        public IEnumerable<LambdaExpression> VisitExpand(CommonTree node, Type itemType)
         {
             Contract.Assert(node.ChildCount > 0);
 
@@ -279,7 +276,7 @@
 
                 var param = Expression.Parameter(itemType, "_");
 
-                var body = Visit(child.Child(), new VisitContext(param, forceDynamicProperties));
+                var body = Visit(child.Child(), new VisitContext(param));
 
                 var accessor = Expression.Lambda(body, param);
 
@@ -287,7 +284,7 @@
             }
         }
 
-        public LambdaExpression VisitSelect(CommonTree node, Type itemType, bool forceDynamicProperties)
+        public LambdaExpression VisitSelect(CommonTree node, Type itemType)
         {
             Contract.Assert(node.ChildCount > 0);
 
@@ -366,7 +363,7 @@
 
                     var itemType = collection.Type.GetGenericArguments()[0];
 
-                    var lambdaCtx = new VisitContext(Expression.Parameter(itemType), context.ForceDynamicProperties);
+                    var lambdaCtx = new VisitContext(Expression.Parameter(itemType));
 
                     var lambda = Visit(node.Children[1] as CommonTree, lambdaCtx);
 
@@ -454,7 +451,7 @@
 
             var subject = childProducts == null ? context.Param : childProducts[0];
 
-            if (context.ForceDynamicProperties || node.Type == ODataQueryLexer.DYNAMICIDENTIFIER)
+            if (node.Type == ODataQueryLexer.DYNAMICIDENTIFIER)
             {
                 var key = node.Text.Trim(new[] { '[', ']' });
 

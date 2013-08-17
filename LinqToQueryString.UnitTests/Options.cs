@@ -21,49 +21,49 @@
 
     public class When_using_not_filter_on_a_dynamic_type_with_force_dynamic_true : Dynamics
     {
-        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=not Age eq 25", forceDynamicProperties: true);
+        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=not [Age] eq 25");
 
         private It should_return_three_results = () => result.Count().ShouldEqual(3);
     }
 
     public class When_using_ge_filter_on_a_dynamic_type_with_force_dynamic_true : Dynamics
     {
-        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=Age ge 25", forceDynamicProperties: true);
+        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=[Age] ge 25");
 
         private It should_return_two_results = () => result.Count().ShouldEqual(2);
     }
 
     public class When_using_gt_filter_on_a_dynamic_type_with_force_dynamic_true : Dynamics
     {
-        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=Age gt 25", forceDynamicProperties: true);
+        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=[Age] gt 25");
 
         private It should_return_two_results = () => result.Count().ShouldEqual(1);
     }
 
     public class When_using_le_filter_on_a_dynamic_type_with_force_dynamic_true : Dynamics
     {
-        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=Age le 25", forceDynamicProperties: true);
+        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=[Age] le 25");
 
         private It should_return_two_results = () => result.Count().ShouldEqual(3);
     }
 
     public class When_using_lt_filter_on_a_dynamic_type_with_force_dynamic_true : Dynamics
     {
-        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=Age lt 25", forceDynamicProperties: true);
+        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=[Age] lt 25");
 
         private It should_return_two_results = () => result.Count().ShouldEqual(2);
     }
 
     public class When_using_eq_filter_on_a_dynamic_type_with_force_dynamic_true : Dynamics
     {
-        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=Age eq 25", forceDynamicProperties: true);
+        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$filter=[Age] eq 25");
 
         private It should_return_two_results = () => result.Count().ShouldEqual(1);
     }
 
     public class When_using_order_by_on_a_dynamic_type_with_force_dynamic_true : Dynamics
     {
-        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$orderby=Age", forceDynamicProperties: true);
+        private Because of = () => result = collection.AsQueryable().LinqToQuerystring("$orderby=[Age]");
 
         private It should_return_two_results = () => result.Count().ShouldEqual(4);
     }
