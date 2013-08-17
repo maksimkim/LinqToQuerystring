@@ -84,11 +84,9 @@ atom[bool subquery]
     |    constant
     |    accessor[subquery];
     
-functioncall[bool subquery]:
-        (function^ OP! atom[subquery] (COMMA! atom[subquery])* CP!)
-        | (fun=M_SUBSTRINGOF OP arg=atom[subquery] COMMA str=atom[subquery] CP)
-            -> ^($fun $str $arg)
-        ;
+functioncall[bool subquery]
+    : function^ OP! atom[subquery] (COMMA! atom[subquery])* CP!
+    ;
 
 accessor[bool subquery]:
         (propertyname[subquery] -> propertyname) 
@@ -106,7 +104,7 @@ lambaexpression
     ;
 
 function
-    :    M_STARTSWITH | M_ENDSWITH | M_INDEXOF | M_TOLOWER | M_TOUPPER | M_LENGTH | M_TRIM;
+    :    M_STARTSWITH | M_ENDSWITH | M_INDEXOF | M_SUBSTRINGOF | M_TOLOWER | M_TOUPPER | M_LENGTH | M_TRIM;
         
 orderby
     :    ORDERBY^ orderbylist;

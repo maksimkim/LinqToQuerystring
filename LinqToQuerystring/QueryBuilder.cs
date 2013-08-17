@@ -409,6 +409,10 @@
             var method = _methods[node.Type - MethodShift];
 
             Contract.Assert(method != null);
+
+            //special case function signature
+            if (node.Type == ODataQueryLexer.M_SUBSTRINGOF)
+                childProducts = childProducts.Reverse().ToArray();
             
             var instance = childProducts[0];
 
