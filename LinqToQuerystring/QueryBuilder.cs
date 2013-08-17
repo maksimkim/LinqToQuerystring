@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics.Contracts;
     using System.Globalization;
@@ -9,24 +10,54 @@
     using System.Linq.Expressions;
     using System.Reflection;
     using Antlr.Runtime.Tree;
-    
+    using Exceptions;
+    using TypeSystem;
+
     public class QueryBuilder
     {
-        private readonly bool _forceDynamicProperties;
+        private readonly ITypeInfoProvider _typeInfoProvider;
 
-        private readonly Func<CommonTree, Expression[], Expression, Expression>[] _visitors = new Func<CommonTree, Expression[], Expression, Expression>[65];
+        private readonly ITypeBuilder _typeBuilder;
 
-        private readonly Func<string, IFormatProvider, object>[] _converters = new Func<string, IFormatProvider, object>[65];
-
-        private readonly Type[] _types = new Type[65];
-
-        private readonly Func<Expression, Expression, Expression>[] _binaries = new Func<Expression, Expression, Expression>[65];
-
-        private readonly MethodInfo[] _methods = new MethodInfo[65];
-
-        public QueryBuilder(bool forceDynamicProperties)
+        private class VisitContext
         {
-            _forceDynamicProperties = forceDynamicProperties;
+            public Expression Param { get; private set; }
+
+            public bool ForceDynamicProperties { get; private set; }
+
+            public VisitContext(Expression param, bool forceDynamicProperties)
+            {
+                Param = param;
+                ForceDynamicProperties = forceDynamicProperties;
+            }
+        }
+
+        private readonly Func<CommonTree, Expression[], VisitContext, Expression>[] _visitors = new Func<CommonTree, Expression[], VisitContext, Expression>[65];
+
+        private const int TypeShift = ODataQueryLexer.T_BOOL;
+
+        private const int BoolOpShift = ODataQueryLexer.BOP_AND;
+
+        private const int MethodShift = ODataQueryLexer.M_ALL;
+
+        private readonly Func<string, IFormatProvider, object>[] _converters = new Func<string, IFormatProvider, object>[ODataQueryLexer.T_STRING - TypeShift + 1];
+
+        private readonly Type[] _types = new Type[ODataQueryLexer.T_STRING - TypeShift + 1];
+
+        private readonly Func<Expression, Expression, Expression>[] _binaries = new Func<Expression, Expression, Expression>[ODataQueryLexer.BOP_OR - BoolOpShift + 1];
+
+        private readonly MethodInfo[] _methods = new MethodInfo[ODataQueryLexer.M_TRIM - MethodShift + 1];
+
+        private static readonly IDictionary<string, LambdaExpression> ProjectionCache 
+            = new Dictionary<string, LambdaExpression>(StringComparer.Create(CultureInfo.InvariantCulture, true));
+
+        private static readonly ConcurrentDictionary<Type, IDictionary<string, PropertyInfo>> PropertyCache
+            = new ConcurrentDictionary<Type, IDictionary<string, PropertyInfo>>();
+
+        public QueryBuilder(ITypeInfoProvider typeInfoProvider, ITypeBuilder typeBuilder)
+        {
+            _typeInfoProvider = typeInfoProvider;
+            _typeBuilder = typeBuilder;
 
             FillVisitors();
             FillTypes();
@@ -37,105 +68,106 @@
 
         private void FillVisitors()
         {
-            _visitors[LinqToQuerystringLexer.ALL] = 
-                _visitors[LinqToQuerystringLexer.ANY] = 
-                    _visitors[LinqToQuerystringLexer.COUNT] =
-                        _visitors[LinqToQuerystringLexer.MAX] =
-                            _visitors[LinqToQuerystringLexer.MIN] = VisitAggregate;
+            _visitors[ODataQueryLexer.M_ALL] =
+                _visitors[ODataQueryLexer.M_ANY] =
+                    _visitors[ODataQueryLexer.M_COUNT] =
+                        _visitors[ODataQueryLexer.M_MAX] =
+                            _visitors[ODataQueryLexer.M_MIN] = VisitAggregate;
 
-            _visitors[LinqToQuerystringLexer.SUM] = VisitSum;
-            _visitors[LinqToQuerystringLexer.AVERAGE] = VisitAverage;
+            _visitors[ODataQueryLexer.M_SUM] = VisitSum;
+            _visitors[ODataQueryLexer.M_AVERAGE] = VisitAverage;
 
-            _visitors[LinqToQuerystringLexer.NOT] = VisitNot;
+            _visitors[ODataQueryLexer.BOP_NOT] = VisitNot;
 
-            _visitors[LinqToQuerystringLexer.EQUALS] = VisitEquals;
-            _visitors[LinqToQuerystringLexer.NOTEQUALS] = VisitNotEquals;
-            _visitors[LinqToQuerystringLexer.OR] = 
-                _visitors[LinqToQuerystringLexer.AND] = 
-                    _visitors[LinqToQuerystringLexer.GREATERTHAN] = 
-                        _visitors[LinqToQuerystringLexer.GREATERTHANOREQUAL] = 
-                            _visitors[LinqToQuerystringLexer.LESSTHAN] = 
-                                _visitors[LinqToQuerystringLexer.LESSTHANOREQUAL] = VisitBinary;
+            _visitors[ODataQueryLexer.BOP_EQUALS] = VisitEquals;
+            _visitors[ODataQueryLexer.BOP_NOTEQUALS] = VisitNotEquals;
+            _visitors[ODataQueryLexer.BOP_OR] =
+                _visitors[ODataQueryLexer.BOP_AND] =
+                    _visitors[ODataQueryLexer.BOP_GREATERTHAN] =
+                        _visitors[ODataQueryLexer.BOP_GREATERTHANOREQUAL] =
+                            _visitors[ODataQueryLexer.BOP_LESSTHAN] =
+                                _visitors[ODataQueryLexer.BOP_LESSTHANOREQUAL] = VisitBinary;
             
-            _visitors[LinqToQuerystringLexer.BOOL] =
-                _visitors[LinqToQuerystringLexer.BYTE] =
-                    _visitors[LinqToQuerystringLexer.DATETIME] =
-                        _visitors[LinqToQuerystringLexer.DOUBLE] =
-                            _visitors[LinqToQuerystringLexer.GUID] =
-                                _visitors[LinqToQuerystringLexer.INT] =
-                                    _visitors[LinqToQuerystringLexer.LONG] =
-                                        _visitors[LinqToQuerystringLexer.SINGLE] =
-                                            _visitors[LinqToQuerystringLexer.STRING] =
-                                                _visitors[LinqToQuerystringLexer.NULL] = VisitConstant;
+            _visitors[ODataQueryLexer.T_BOOL] =
+                _visitors[ODataQueryLexer.T_BYTE] =
+                    _visitors[ODataQueryLexer.T_DATETIME] =
+                        _visitors[ODataQueryLexer.T_DOUBLE] =
+                            _visitors[ODataQueryLexer.T_GUID] =
+                                _visitors[ODataQueryLexer.T_INT] =
+                                    _visitors[ODataQueryLexer.T_LONG] =
+                                        _visitors[ODataQueryLexer.T_SINGLE] =
+                                            _visitors[ODataQueryLexer.T_STRING] =
+                                                _visitors[ODataQueryLexer.T_NULL] = VisitConstant;
 
-            _visitors[LinqToQuerystringLexer.IDENTIFIER] = VisitIdentifier;
-            _visitors[LinqToQuerystringLexer.DYNAMICIDENTIFIER] = VisitDynamicIdentifier;
-            _visitors[LinqToQuerystringLexer.ALIAS] = VisitAlias;
-            _visitors[LinqToQuerystringLexer.LAMBDA] = VisitLambda;
-            
-            _visitors[LinqToQuerystringLexer.STARTSWITH] =
-                _visitors[LinqToQuerystringLexer.ENDSWITH] = 
-                    _visitors[LinqToQuerystringLexer.INDEXOF] = 
-                        _visitors[LinqToQuerystringLexer.SUBSTRINGOF] =
-                            _visitors[LinqToQuerystringLexer.TOLOWER] =
-                                _visitors[LinqToQuerystringLexer.TOUPPER] =
-                                    _visitors[LinqToQuerystringLexer.LENGTH] =
-                                        _visitors[LinqToQuerystringLexer.TRIM] = VisitStringFunction;
+            _visitors[ODataQueryLexer.IDENTIFIER] = 
+                _visitors[ODataQueryLexer.DYNAMICIDENTIFIER] = VisitIdentifier;
+
+            _visitors[ODataQueryLexer.ALIAS] = VisitAlias;
+            _visitors[ODataQueryLexer.LAMBDA] = VisitLambda;
+
+            _visitors[ODataQueryLexer.M_STARTSWITH] =
+                _visitors[ODataQueryLexer.M_ENDSWITH] =
+                    _visitors[ODataQueryLexer.M_INDEXOF] =
+                        _visitors[ODataQueryLexer.M_SUBSTRINGOF] =
+                            _visitors[ODataQueryLexer.M_TOLOWER] =
+                                _visitors[ODataQueryLexer.M_TOUPPER] =
+                                    _visitors[ODataQueryLexer.M_LENGTH] =
+                                        _visitors[ODataQueryLexer.M_TRIM] = VisitStringFunction;
 
         }
 
         private void FillMethods()
         {
-            _methods[LinqToQuerystringLexer.STARTSWITH] = typeof(string).GetMethod("StartsWith", new[] { typeof(string) });
-            _methods[LinqToQuerystringLexer.ENDSWITH] = typeof(string).GetMethod("EndsWith", new[] { typeof(string) });
-            _methods[LinqToQuerystringLexer.SUBSTRINGOF] = typeof(string).GetMethod("Contains", new[] { typeof(string) });
-            _methods[LinqToQuerystringLexer.INDEXOF] = typeof(string).GetMethod("IndexOf", new[] { typeof(string) });
+            _methods[ODataQueryLexer.M_STARTSWITH - MethodShift] = typeof(string).GetMethod("StartsWith", new[] { typeof(string) });
+            _methods[ODataQueryLexer.M_ENDSWITH - MethodShift] = typeof(string).GetMethod("EndsWith", new[] { typeof(string) });
+            _methods[ODataQueryLexer.M_SUBSTRINGOF - MethodShift] = typeof(string).GetMethod("Contains", new[] { typeof(string) });
+            _methods[ODataQueryLexer.M_INDEXOF - MethodShift] = typeof(string).GetMethod("IndexOf", new[] { typeof(string) });
 
-            _methods[LinqToQuerystringLexer.TOLOWER] = typeof(string).GetMethod("ToLowerInvariant", Type.EmptyTypes);
-            _methods[LinqToQuerystringLexer.TOUPPER] = typeof(string).GetMethod("ToUpperInvariant", Type.EmptyTypes);
-            _methods[LinqToQuerystringLexer.LENGTH] = typeof(string).GetMethod("Length", Type.EmptyTypes);
-            _methods[LinqToQuerystringLexer.TRIM] = typeof(string).GetMethod("Trim", Type.EmptyTypes);
+            _methods[ODataQueryLexer.M_TOLOWER - MethodShift] = typeof(string).GetMethod("ToLowerInvariant", Type.EmptyTypes);
+            _methods[ODataQueryLexer.M_TOUPPER - MethodShift] = typeof(string).GetMethod("ToUpperInvariant", Type.EmptyTypes);
+            _methods[ODataQueryLexer.M_LENGTH - MethodShift] = typeof(string).GetMethod("Length", Type.EmptyTypes);
+            _methods[ODataQueryLexer.M_TRIM - MethodShift] = typeof(string).GetMethod("Trim", Type.EmptyTypes);
 
-            _methods[LinqToQuerystringLexer.MAX] = (((Expression<Func<IEnumerable<object>, object>>)(_ => _.Max())).Body as MethodCallExpression).Method.GetGenericMethodDefinition();
-            _methods[LinqToQuerystringLexer.MIN] = (((Expression<Func<IEnumerable<object>, object>>)(_ => _.Min())).Body as MethodCallExpression).Method.GetGenericMethodDefinition();
-            _methods[LinqToQuerystringLexer.COUNT] = (((Expression<Func<IEnumerable<object>, int>>)(_ => _.Count())).Body as MethodCallExpression).Method.GetGenericMethodDefinition();
+            _methods[ODataQueryLexer.M_MAX - MethodShift] = (((Expression<Func<IEnumerable<object>, object>>)(_ => _.Max())).Body as MethodCallExpression).Method.GetGenericMethodDefinition();
+            _methods[ODataQueryLexer.M_MIN - MethodShift] = (((Expression<Func<IEnumerable<object>, object>>)(_ => _.Min())).Body as MethodCallExpression).Method.GetGenericMethodDefinition();
+            _methods[ODataQueryLexer.M_COUNT - MethodShift] = (((Expression<Func<IEnumerable<object>, int>>)(_ => _.Count())).Body as MethodCallExpression).Method.GetGenericMethodDefinition();
 
-            _methods[LinqToQuerystringLexer.ALL] = (((Expression<Func<IEnumerable<object>, bool>>)(_ => _.All(i => true))).Body as MethodCallExpression).Method.GetGenericMethodDefinition();
-            _methods[LinqToQuerystringLexer.ANY] = (((Expression<Func<IEnumerable<object>, bool>>)(_ => _.Any(i => true))).Body as MethodCallExpression).Method.GetGenericMethodDefinition();
+            _methods[ODataQueryLexer.M_ALL - MethodShift] = (((Expression<Func<IEnumerable<object>, bool>>)(_ => _.All(i => true))).Body as MethodCallExpression).Method.GetGenericMethodDefinition();
+            _methods[ODataQueryLexer.M_ANY - MethodShift] = (((Expression<Func<IEnumerable<object>, bool>>)(_ => _.Any(i => true))).Body as MethodCallExpression).Method.GetGenericMethodDefinition();
         }
 
         private void FillTypes()
         {
-            _types[LinqToQuerystringLexer.BOOL] = typeof(bool);
-            _types[LinqToQuerystringLexer.BYTE] = typeof(byte);
-            _types[LinqToQuerystringLexer.DATETIME] = typeof(DateTime);
-            _types[LinqToQuerystringLexer.DOUBLE] = typeof(double);
-            _types[LinqToQuerystringLexer.GUID] = typeof(Guid);
-            _types[LinqToQuerystringLexer.INT] = typeof(int);
-            _types[LinqToQuerystringLexer.LONG] = typeof(long);
-            _types[LinqToQuerystringLexer.SINGLE] = typeof(float);
-            _types[LinqToQuerystringLexer.STRING] = typeof(string);
+            _types[ODataQueryLexer.T_BOOL - TypeShift] = typeof(bool);
+            _types[ODataQueryLexer.T_BYTE - TypeShift] = typeof(byte);
+            _types[ODataQueryLexer.T_DATETIME - TypeShift] = typeof(DateTime);
+            _types[ODataQueryLexer.T_DOUBLE - TypeShift] = typeof(double);
+            _types[ODataQueryLexer.T_GUID - TypeShift] = typeof(Guid);
+            _types[ODataQueryLexer.T_INT - TypeShift] = typeof(int);
+            _types[ODataQueryLexer.T_LONG - TypeShift] = typeof(long);
+            _types[ODataQueryLexer.T_SINGLE - TypeShift] = typeof(float);
+            _types[ODataQueryLexer.T_STRING - TypeShift] = typeof(string);
         }
 
         private void FillConverters()
         {
-            _converters[LinqToQuerystringLexer.NULL] = (v, p) => null;
-            _converters[LinqToQuerystringLexer.BOOL] = (v, p) => Convert.ToBoolean(v, p);
-            _converters[LinqToQuerystringLexer.DOUBLE] = (v, p) => Convert.ToDouble(v, p);
-            _converters[LinqToQuerystringLexer.INT] = (v, p) => Convert.ToInt32(v, p);
-            
-            _converters[LinqToQuerystringLexer.BYTE] = (v, p) => Convert.ToByte(v.Replace("0x", string.Empty), 16);
-            _converters[LinqToQuerystringLexer.GUID] = (v, p) => new Guid(v.Replace("guid'", string.Empty).Replace("'", string.Empty));
-            _converters[LinqToQuerystringLexer.LONG] = (v, p) => Convert.ToInt64(v.Replace("L", string.Empty), p);
-            _converters[LinqToQuerystringLexer.SINGLE] = (v, p) => Convert.ToSingle(v.Replace("f", string.Empty), p);
-            
-            _converters[LinqToQuerystringLexer.DATETIME] = (v, p) =>
+            _converters[ODataQueryLexer.T_NULL - TypeShift] = (v, p) => null;
+            _converters[ODataQueryLexer.T_BOOL - TypeShift] = (v, p) => Convert.ToBoolean(v, p);
+            _converters[ODataQueryLexer.T_DOUBLE - TypeShift] = (v, p) => Convert.ToDouble(v, p);
+            _converters[ODataQueryLexer.T_INT - TypeShift] = (v, p) => Convert.ToInt32(v, p);
+
+            _converters[ODataQueryLexer.T_BYTE - TypeShift] = (v, p) => Convert.ToByte(v.Replace("0x", string.Empty), 16);
+            _converters[ODataQueryLexer.T_GUID - TypeShift] = (v, p) => new Guid(v.Replace("guid'", string.Empty).Replace("'", string.Empty));
+            _converters[ODataQueryLexer.T_LONG - TypeShift] = (v, p) => Convert.ToInt64(v.Replace("L", string.Empty), p);
+            _converters[ODataQueryLexer.T_SINGLE - TypeShift] = (v, p) => Convert.ToSingle(v.Replace("f", string.Empty), p);
+
+            _converters[ODataQueryLexer.T_DATETIME - TypeShift] = (v, p) =>
             {
                 v = v.Replace("datetime'", string.Empty).Replace("'", string.Empty).Replace(".", ":");
                 return DateTime.Parse(v, null, DateTimeStyles.RoundtripKind);
             };
-            
-            _converters[LinqToQuerystringLexer.STRING] = (v, p) =>
+
+            _converters[ODataQueryLexer.T_STRING - TypeShift] = (v, p) =>
             {
                 if (!string.IsNullOrWhiteSpace(v))
                 {
@@ -156,43 +188,43 @@
 
         private void FillBinaries()
         {
-            _binaries[LinqToQuerystringLexer.EQUALS] = Expression.Equal;
-            _binaries[LinqToQuerystringLexer.NOTEQUALS] = Expression.NotEqual;
-            _binaries[LinqToQuerystringLexer.GREATERTHAN] = Expression.GreaterThan;
-            _binaries[LinqToQuerystringLexer.GREATERTHANOREQUAL] = Expression.GreaterThanOrEqual;
-            _binaries[LinqToQuerystringLexer.LESSTHAN] = Expression.LessThan;
-            _binaries[LinqToQuerystringLexer.LESSTHANOREQUAL] = Expression.LessThanOrEqual;
-            _binaries[LinqToQuerystringLexer.OR] = Expression.Or;
-            _binaries[LinqToQuerystringLexer.AND] = Expression.And;
+            _binaries[ODataQueryLexer.BOP_EQUALS - BoolOpShift] = Expression.Equal;
+            _binaries[ODataQueryLexer.BOP_NOTEQUALS - BoolOpShift] = Expression.NotEqual;
+            _binaries[ODataQueryLexer.BOP_GREATERTHAN - BoolOpShift] = Expression.GreaterThan;
+            _binaries[ODataQueryLexer.BOP_GREATERTHANOREQUAL - BoolOpShift] = Expression.GreaterThanOrEqual;
+            _binaries[ODataQueryLexer.BOP_LESSTHAN - BoolOpShift] = Expression.LessThan;
+            _binaries[ODataQueryLexer.BOP_LESSTHANOREQUAL - BoolOpShift] = Expression.LessThanOrEqual;
+            _binaries[ODataQueryLexer.BOP_OR - BoolOpShift] = Expression.Or;
+            _binaries[ODataQueryLexer.BOP_AND - BoolOpShift] = Expression.And;
         }
 
-        public ODataQuery BuildQuery(CommonTree tree, Type itemType)
+        public QueryModel BuildQuery(CommonTree tree, Type itemType, bool forceDynamicProperties = false)
         {
-            var result = new ODataQuery();
+            var result = new QueryModel();
 
             foreach (var node in IterateClauses(tree))
             {
                 switch (node.Type)
                 {
-                    case LinqToQuerystringLexer.FILTER:
-                        result.Filter = VisitFilter(node, itemType);
+                    case ODataQueryLexer.FILTER:
+                        result.Filter = VisitFilter(node, itemType, forceDynamicProperties);
                         break;
-                    case LinqToQuerystringLexer.ORDERBY:
-                        result.OrderBy = VisitOrderBy(node, itemType).ToArray();
+                    case ODataQueryLexer.ORDERBY:
+                        result.OrderBy = VisitOrderBy(node, itemType, forceDynamicProperties).ToArray();
                         break;
-                    case LinqToQuerystringLexer.EXPAND:
-                        result.Expand = VisitExpand(node, itemType).ToArray();
+                    case ODataQueryLexer.EXPAND:
+                        result.Expand = VisitExpand(node, itemType, forceDynamicProperties).ToArray();
                         break;
-                    case LinqToQuerystringLexer.SELECT:
-                        result.Select = VisitSelect(node, itemType);
+                    case ODataQueryLexer.SELECT:
+                        result.Select = VisitSelect(node, itemType, forceDynamicProperties);
                         break;
-                    case LinqToQuerystringLexer.SKIP:
+                    case ODataQueryLexer.SKIP:
                         result.Skip = VisitSkip(node);
                         break;
-                    case LinqToQuerystringLexer.TOP:
+                    case ODataQueryLexer.TOP:
                         result.Top = VisitTop(node);
                         break;
-                    case LinqToQuerystringLexer.INLINECOUNT:
+                    case ODataQueryLexer.INLINECOUNT:
                         result.InlineCount = true;
                         break;
                     default:
@@ -204,11 +236,11 @@
             return result;
         }
 
-        private LambdaExpression VisitFilter(CommonTree node, Type itemType)
+        public LambdaExpression VisitFilter(CommonTree node, Type itemType, bool forceDynamicProperties)
         {
             var param = Expression.Parameter(itemType, "_");
             
-            var body = Visit(node.Child(), param);
+            var body = Visit(node.Child(), new VisitContext(param, forceDynamicProperties));
 
             var filter = Expression.Lambda(body, param);
 
@@ -217,37 +249,37 @@
             return filter;
         }
 
-        private IEnumerable<SortDescription> VisitOrderBy(CommonTree node, Type itemType)
+        public IEnumerable<SortDescription> VisitOrderBy(CommonTree node, Type itemType, bool forceDynamicProperties)
         {
             Contract.Assert(node.ChildCount > 0);
 
-            foreach (var child in node.TreeChildren())
+            foreach (var child in node.ChildNodes())
             {
-                if (child.Type != LinqToQuerystringLexer.ASC && child.Type != LinqToQuerystringLexer.DESC)
+                if (child.Type != ODataQueryLexer.ASC && child.Type != ODataQueryLexer.DESC)
                     child.Invalid();
                 
                 var param = Expression.Parameter(itemType, "_");
                 
-                var body = Visit(child.Child(), param);
+                var body = Visit(child.Child(), new VisitContext(param, forceDynamicProperties));
 
                 var accessor = Expression.Lambda(body, param);
 
-                yield return new SortDescription(accessor, child.Type == LinqToQuerystringLexer.DESC);
+                yield return new SortDescription(accessor, child.Type == ODataQueryLexer.DESC);
             }
         }
 
-        private IEnumerable<LambdaExpression> VisitExpand(CommonTree node, Type itemType)
+        public IEnumerable<LambdaExpression> VisitExpand(CommonTree node, Type itemType, bool forceDynamicProperties)
         {
             Contract.Assert(node.ChildCount > 0);
 
-            foreach (var child in node.TreeChildren())
+            foreach (var child in node.ChildNodes())
             {
-                if (child.Type != LinqToQuerystringLexer.IDENTIFIER)
+                if (child.Type != ODataQueryLexer.IDENTIFIER)
                     child.Invalid();
 
                 var param = Expression.Parameter(itemType, "_");
 
-                var body = Visit(child.Child(), param);
+                var body = Visit(child.Child(), new VisitContext(param, forceDynamicProperties));
 
                 var accessor = Expression.Lambda(body, param);
 
@@ -255,28 +287,42 @@
             }
         }
 
-        private LambdaExpression VisitSelect(CommonTree node, Type itemType)
+        public LambdaExpression VisitSelect(CommonTree node, Type itemType, bool forceDynamicProperties)
         {
             Contract.Assert(node.ChildCount > 0);
 
-            var parameter = Expression.Parameter(itemType, "o");
+            var propertyNames = node.ChildNodes().Select(c => c.Text).OrderBy(_ => _).ToArray();
 
-            var addMethod = typeof(Dictionary<string, object>).GetMethod("Add");
+            var cacheKey = string.Format("{0}:{1}", itemType.Name, string.Join(",", propertyNames));
 
-            var elements = node.TreeChildren().Select(
-                child => Expression.ElementInit(
-                    addMethod, Expression.Constant(child.Text),
-                    Expression.Convert(Visit(child, parameter), typeof(object))
-                )
-            );
+            if (!ProjectionCache.ContainsKey(cacheKey))
+                lock (((ICollection)ProjectionCache).SyncRoot)
+                    if (!ProjectionCache.ContainsKey(cacheKey))
+                    {
+                        var props = propertyNames.Select(n => FindProperty(itemType, n)).ToArray();
 
-            var newDictionary = Expression.New(typeof(Dictionary<string, object>));
+                        var targetType = _typeBuilder.Build(cacheKey, itemType, props);
 
-            var init = Expression.ListInit(newDictionary, elements);
+                        var param = Expression.Parameter(itemType, "_");
 
-            var lambda = Expression.Lambda(init, new[] { parameter });
+                        var bindings = targetType
+                            .GetProperties()
+                            .Join(props, p => p.Name, p => p.Name, (t, s) => new { target = t, source = s })
+                            .Select(pair => Expression.Bind(pair.target, Expression.Property(param, pair.source)));
 
-            return lambda;
+                        var ctor = targetType.GetConstructor(Type.EmptyTypes);
+
+                        Contract.Assert(ctor != null);
+
+                        var projection = Expression.Lambda(
+                            Expression.MemberInit(Expression.New(ctor), bindings), 
+                            param
+                        );
+
+                        ProjectionCache.Add(cacheKey, projection);
+                    }
+            
+            return ProjectionCache[cacheKey];
         }
 
         private int VisitSkip(CommonTree node)
@@ -286,7 +332,7 @@
             var child = node.Children[0];
 
             Contract.Assert(child != null);
-            Contract.Assert(child.Type == LinqToQuerystringLexer.INT);
+            Contract.Assert(child.Type == ODataQueryLexer.T_INT);
 
             return Convert.ToInt32(child.Text, CultureInfo.InvariantCulture);
         }
@@ -298,53 +344,56 @@
             var child = node.Children[0];
 
             Contract.Assert(child != null);
-            Contract.Assert(child.Type == LinqToQuerystringLexer.INT);
+            Contract.Assert(child.Type == ODataQueryLexer.T_INT);
 
             return Convert.ToInt32(child.Text, CultureInfo.InvariantCulture);
         }
 
-        public Expression Visit(CommonTree node, Expression param)
+        private Expression Visit(CommonTree node, VisitContext context)
         {
             Expression[] products = null;
 
             if (node.ChildCount > 0)
             {
-                if (node.Type == LinqToQuerystringLexer.ALL || node.Type == LinqToQuerystringLexer.ANY)
+                if (node.Type == ODataQueryLexer.M_ALL || node.Type == ODataQueryLexer.M_ANY)
                 {
                     Contract.Assert(node.ChildCount == 2);
 
-                    var collection = Visit(node.Children[0] as CommonTree, param);
+                    var collection = Visit(node.Children[0] as CommonTree, context);
 
+                    //context change for inner lambda
                     Contract.Assert(typeof(IEnumerable).IsAssignableFrom(collection.Type) && collection.Type.IsGenericType);
 
                     var itemType = collection.Type.GetGenericArguments()[0];
 
-                    var lambda = Visit(node.Children[1] as CommonTree, Expression.Parameter(itemType));
+                    var lambdaCtx = new VisitContext(Expression.Parameter(itemType), context.ForceDynamicProperties);
+
+                    var lambda = Visit(node.Children[1] as CommonTree, lambdaCtx);
 
                     products = new[] { collection, lambda };
                 }
                 else
-                    products = node.TreeChildren().Select(c => Visit(c, param)).ToArray();
+                    products = node.ChildNodes().Select(c => Visit(c, context)).ToArray();
             }
 
-            return VisitNode(node, products, param);
+            return VisitNode(node, products, context);
         }
 
-        private Expression VisitNode(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitNode(CommonTree node, Expression[] childProducts, VisitContext context)
         {
             var visitor = _visitors[node.Type];
 
             if (visitor == null)
                 node.Invalid();
 
-            return visitor(node, childProducts, param);
+            return visitor(node, childProducts, context);
         }
 
-        private Expression VisitConstant(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitConstant(CommonTree node, Expression[] childProducts, VisitContext context)
         {
-            var type = _types[node.Type];
+            var type = _types[node.Type -TypeShift];
 
-            var converter = _converters[node.Type];
+            var converter = _converters[node.Type - TypeShift];
 
             Contract.Assert(converter != null);
 
@@ -356,11 +405,11 @@
                 : Expression.Constant(value);
         }
 
-        private Expression VisitStringFunction(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitStringFunction(CommonTree node, Expression[] childProducts, VisitContext context)
         {
             Contract.Assert(childProducts != null && childProducts.Length > 0);
 
-            var method = _methods[node.Type];
+            var method = _methods[node.Type - MethodShift];
 
             Contract.Assert(method != null);
             
@@ -379,7 +428,7 @@
             return Expression.Call(instance, method);
         }
 
-        private Expression VisitLambda(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitLambda(CommonTree node, Expression[] childProducts, VisitContext context)
         {
             Contract.Assert(childProducts != null && childProducts.Length > 1);
             var body = childProducts[0];
@@ -387,7 +436,7 @@
             return Expression.Lambda(body, childProducts.Skip(1).Cast<ParameterExpression>());
         }
 
-        private Expression VisitNot(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitNot(CommonTree node, Expression[] childProducts, VisitContext context)
         {
             Contract.Assert(childProducts != null && childProducts.Length == 1);
 
@@ -399,37 +448,30 @@
             return Expression.Not(product);
         }
 
-        private Expression VisitIdentifier(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitIdentifier(CommonTree node, Expression[] childProducts, VisitContext context)
         {
-            if (_forceDynamicProperties)
-                return VisitDynamicIdentifier(node, childProducts, param);
+            Contract.Assert(childProducts == null || childProducts.Length == 1);
+
+            var subject = childProducts == null ? context.Param : childProducts[0];
+
+            if (context.ForceDynamicProperties || node.Type == ODataQueryLexer.DYNAMICIDENTIFIER)
+            {
+                var key = node.Text.Trim(new[] { '[', ']' });
+
+                return Expression.Call(subject, "get_Item", null, Expression.Constant(key));
+            }
             
-            Contract.Assert(childProducts == null || childProducts.Length == 1);
+            var property = FindProperty(subject.Type, node.Text);
 
-            var subject = childProducts == null ? param : childProducts[0];
-
-            return Expression.Property(subject, node.Text);
+            return Expression.Property(subject, property);
         }
 
-        private Expression VisitDynamicIdentifier(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitAlias(CommonTree node, Expression[] childProducts, VisitContext context)
         {
-            Contract.Assert(childProducts == null || childProducts.Length == 1);
-
-            var subject = childProducts == null ? param : childProducts[0];
-
-            var key = node.Text.Trim(new[] { '[', ']' });
-
-            var property = Expression.Call(subject, "get_Item", null, Expression.Constant(key));
-
-            return property;
+            return context.Param;
         }
 
-        private Expression VisitAlias(CommonTree node, Expression[] childProducts, Expression param)
-        {
-            return param;
-        }
-
-        private Expression VisitEquals(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitEquals(CommonTree node, Expression[] childProducts, VisitContext context)
         {
             Contract.Assert(childProducts != null && childProducts.Length == 2);
 
@@ -458,10 +500,10 @@
                 return Expression.Not(right);
             }
 
-            return VisitBinary(node, childProducts, param);
+            return VisitBinary(node, childProducts, context);
         }
 
-        private Expression VisitNotEquals(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitNotEquals(CommonTree node, Expression[] childProducts, VisitContext context)
         {
             Contract.Assert(childProducts != null && childProducts.Length == 2);
 
@@ -473,11 +515,11 @@
             return ApplyWithNullAsValidAlternative(Expression.NotEqual, left, right);
         }
 
-        private Expression VisitBinary(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitBinary(CommonTree node, Expression[] childProducts, VisitContext context)
         {
             Contract.Assert(childProducts != null && childProducts.Length == 2);
 
-            var op = _binaries[node.Type];
+            var op = _binaries[node.Type - BoolOpShift];
 
             Contract.Assert(op != null);
 
@@ -489,7 +531,7 @@
             return ApplyEnsuringNullablesHaveValues(op, left, right);
         }
 
-        private Expression VisitAggregate(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitAggregate(CommonTree node, Expression[] childProducts, VisitContext context)
         {
             Contract.Assert(childProducts != null && childProducts.Length > 0);
 
@@ -499,7 +541,7 @@
 
             var itemType = instance.Type.GetGenericArguments()[0];
 
-            var method = _methods[node.Type];
+            var method = _methods[node.Type - MethodShift];
 
             Contract.Assert(method != null);
 
@@ -508,12 +550,12 @@
             return Expression.Call(method, childProducts);
         }
 
-        private Expression VisitAverage(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitAverage(CommonTree node, Expression[] childProducts, VisitContext context)
         {
             return VisitAggregateWithName("Average", childProducts);
         }
 
-        private Expression VisitSum(CommonTree node, Expression[] childProducts, Expression param)
+        private Expression VisitSum(CommonTree node, Expression[] childProducts, VisitContext context)
         {
             return VisitAggregateWithName("Sum", childProducts);
         }
@@ -534,11 +576,11 @@
             if (!tree.IsNil)
                 yield return tree;
             else
-                foreach (var child in tree.TreeChildren())
+                foreach (var child in tree.ChildNodes())
                     yield return child;
         }
 
-        protected static Expression ApplyEnsuringNullablesHaveValues(Func<Expression, Expression, Expression> binaryOp, Expression left, Expression right)
+        private static Expression ApplyEnsuringNullablesHaveValues(Func<Expression, Expression, Expression> binaryOp, Expression left, Expression right)
         {
             var leftExpressionIsNullable = (Nullable.GetUnderlyingType(left.Type) != null);
             var rightExpressionIsNullable = (Nullable.GetUnderlyingType(right.Type) != null);
@@ -560,7 +602,7 @@
             return binaryOp(left, right);
         }
 
-        protected static Expression ApplyWithNullAsValidAlternative(Func<Expression, Expression, Expression> binaryOp, Expression left, Expression right)
+        private static Expression ApplyWithNullAsValidAlternative(Func<Expression, Expression, Expression> binaryOp, Expression left, Expression right)
         {
             var leftExpressionIsNullable = (Nullable.GetUnderlyingType(left.Type) != null);
             var rightExpressionIsNullable = (Nullable.GetUnderlyingType(right.Type) != null);
@@ -582,7 +624,7 @@
             return binaryOp(left, right);
         }
 
-        protected static void NormalizeTypes(ref Expression left, ref Expression right)
+        private static void NormalizeTypes(ref Expression left, ref Expression right)
         {
             if (left.Type == right.Type)
                 return;
@@ -608,10 +650,31 @@
                     left = CastIfNeeded(left, right.Type);
         }
 
-        protected static Expression CastIfNeeded(Expression expression, Type type)
+        private static Expression CastIfNeeded(Expression expression, Type type)
         {
             //possibly enum convertion code should be here
             return !type.IsAssignableFrom(expression.Type) ? Expression.Convert(expression, type) : expression;
+        }
+
+        private PropertyInfo FindProperty(Type type, string name)
+        {
+            Contract.Assert(type != null);
+            Contract.Assert(!string.IsNullOrWhiteSpace(name));
+
+            var cached = PropertyCache.GetOrAdd(
+                type,
+                key => new Dictionary<string, PropertyInfo>(
+                    _typeInfoProvider.GetProperties(key).ToDictionary(_typeInfoProvider.GetPropertyName, p => p),
+                    StringComparer.Create(CultureInfo.InvariantCulture, true)
+                    )
+                );
+
+            PropertyInfo result;
+
+            if (!cached.TryGetValue(name, out result))
+                throw new QueryParserException(string.Format("Property {0} doesn't exist or not supported for querying", name));
+
+            return result;
         }
     }
 }

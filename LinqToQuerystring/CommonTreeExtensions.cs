@@ -5,10 +5,11 @@
     using System.Diagnostics.Contracts;
     using System.Linq;
     using Antlr.Runtime.Tree;
+    using Exceptions;
 
     public static class CommonTreeExtensions
     {
-        public static IEnumerable<CommonTree> TreeChildren(this CommonTree node)
+        public static IEnumerable<CommonTree> ChildNodes(this CommonTree node)
         {
             return node.Children.Cast<CommonTree>();
         }
@@ -17,12 +18,12 @@
         {
             Contract.Assert(node.ChildCount == 1);
             
-            return node.TreeChildren().First();
+            return node.ChildNodes().First();
         }
 
         public static void Invalid(this ITree node)
         {
-            throw new InvalidOperationException("Invalid 'token' " + node.Text);
+            throw new QueryParserException("Invalid 'token' " + node.Text);
         }
     }
 }

@@ -4,7 +4,7 @@
     using System.Linq;
     using System.Linq.Expressions;
 
-    public class ODataQuery
+    public class QueryModel
     {
         public LambdaExpression Filter { get; set; }
 
@@ -20,7 +20,7 @@
 
         public bool InlineCount { get; set; }
 
-        public ODataQuery()
+        public QueryModel()
         {
             OrderBy = Enumerable.Empty<SortDescription>();
 

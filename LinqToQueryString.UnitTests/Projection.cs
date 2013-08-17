@@ -14,11 +14,11 @@
     {
         protected static Exception ex;
 
-        protected static IQueryable<Dictionary<string, object>> result;
+        protected static IQueryable<dynamic> result;
 
-        protected static IQueryable<Dictionary<string, object>> complexResult;
+        protected static IQueryable<dynamic> complexResult;
 
-        protected static IQueryable<Dictionary<string, object>> nullableResult;
+        protected static IQueryable<dynamic> nullableResult;
 
         protected static List<ConcreteClass> concreteCollection;
 
@@ -63,160 +63,119 @@
     public class When_selecting_a_single_string_property : Projection
     {
         private Because of =
-            () =>
-            result = concreteCollection.AsQueryable().LinqToQuerystring<ConcreteClass, IQueryable<Dictionary<string, object>>>("?$select=Name");
-
-        private It should_project_the_name_properties_into_the_dictionary =
-            () => result.ShouldEachConformTo(r => r.ContainsKey("Name"));
-
-        private It should_only_have_projected_the_one_property =
-            () => result.ShouldEachConformTo(r => r.Count == 1);
-
+            () => result = concreteCollection.AsQueryable().LinqToQuerystring<ConcreteClass, IQueryable<object>>("?$select=Name,Age");
+            
         private It should_contain_5_results = () => result.Count().ShouldEqual(5);
 
-        private It should_start_with_the_first_record = () => result.ElementAt(0)["Name"].ShouldEqual(concreteCollection.ElementAt(0).Name);
+        private It should_start_with_the_first_record = () => ((string)result.ElementAt(0).Name).ShouldEqual(concreteCollection.ElementAt(0).Name);
 
-        private It should_be_followed_by_the_second_record = () => result.ElementAt(1)["Name"].ShouldEqual(concreteCollection.ElementAt(1).Name);
+        private It should_be_followed_by_the_second_record = () => ((string)result.ElementAt(1).Name).ShouldEqual(concreteCollection.ElementAt(1).Name);
 
-        private It should_be_followed_by_the_third_record = () => result.ElementAt(2)["Name"].ShouldEqual(concreteCollection.ElementAt(2).Name);
+        private It should_be_followed_by_the_third_record = () => ((string)result.ElementAt(2).Name).ShouldEqual(concreteCollection.ElementAt(2).Name);
 
-        private It should_be_followed_by_the_fourth_record = () => result.ElementAt(3)["Name"].ShouldEqual(concreteCollection.ElementAt(3).Name);
+        private It should_be_followed_by_the_fourth_record = () => ((string)result.ElementAt(3).Name).ShouldEqual(concreteCollection.ElementAt(3).Name);
 
-        private It should_be_followed_by_the_fifth_record = () => result.ElementAt(4)["Name"].ShouldEqual(concreteCollection.ElementAt(4).Name);
+        private It should_be_followed_by_the_fifth_record = () => ((string)result.ElementAt(4).Name).ShouldEqual(concreteCollection.ElementAt(4).Name);
     }
 
     public class When_selecting_a_single_int_property : Projection
     {
         private Because of =
             () =>
-            result = concreteCollection.AsQueryable().LinqToQuerystring<ConcreteClass, IQueryable<Dictionary<string, object>>>("?$select=Age");
-
-        private It should_project_the_name_properties_into_the_dictionary =
-            () => result.ShouldEachConformTo(
-                r => r.ContainsKey("Age"));
-
-        private It should_only_have_projected_the_one_property =
-            () => result.ShouldEachConformTo(r => r.Count == 1);
+            result = concreteCollection.AsQueryable().LinqToQuerystring<ConcreteClass, IQueryable<object>>("?$select=Age");
 
         private It should_contain_5_results = () => result.Count().ShouldEqual(5);
 
-        private It should_start_with_the_first_record = () => result.ElementAt(0)["Age"].ShouldEqual(concreteCollection.ElementAt(0).Age);
+        private It should_start_with_the_first_record = () => ((int)result.ElementAt(0).Age).ShouldEqual(concreteCollection.ElementAt(0).Age);
 
-        private It should_be_followed_by_the_second_record = () => result.ElementAt(1)["Age"].ShouldEqual(concreteCollection.ElementAt(1).Age);
+        private It should_be_followed_by_the_second_record = () => ((int)result.ElementAt(1).Age).ShouldEqual(concreteCollection.ElementAt(1).Age);
 
-        private It should_be_followed_by_the_third_record = () => result.ElementAt(2)["Age"].ShouldEqual(concreteCollection.ElementAt(2).Age);
+        private It should_be_followed_by_the_third_record = () => ((int)result.ElementAt(2).Age).ShouldEqual(concreteCollection.ElementAt(2).Age);
 
-        private It should_be_followed_by_the_fourth_record = () => result.ElementAt(3)["Age"].ShouldEqual(concreteCollection.ElementAt(3).Age);
+        private It should_be_followed_by_the_fourth_record = () => ((int)result.ElementAt(3).Age).ShouldEqual(concreteCollection.ElementAt(3).Age);
 
-        private It should_be_followed_by_the_fifth_record = () => result.ElementAt(4)["Age"].ShouldEqual(concreteCollection.ElementAt(4).Age);
+        private It should_be_followed_by_the_fifth_record = () => ((int)result.ElementAt(4).Age).ShouldEqual(concreteCollection.ElementAt(4).Age);
     }
 
     public class When_selecting_a_single_datetime_property : Projection
     {
         private Because of =
             () =>
-            result = concreteCollection.AsQueryable().LinqToQuerystring<ConcreteClass, IQueryable<Dictionary<string, object>>>("?$select=Date");
-
-        private It should_project_the_name_properties_into_the_dictionary =
-            () => result.ShouldEachConformTo(
-                r => r.ContainsKey("Date"));
-
-        private It should_only_have_projected_the_one_property =
-            () => result.ShouldEachConformTo(r => r.Count == 1);
+            result = concreteCollection.AsQueryable().LinqToQuerystring<ConcreteClass, IQueryable<object>>("?$select=Date");
 
         private It should_contain_5_results = () => result.Count().ShouldEqual(5);
 
-        private It should_start_with_the_first_record = () => result.ElementAt(0)["Date"].ShouldEqual(concreteCollection.ElementAt(0).Date);
+        private It should_start_with_the_first_record = () => ((DateTime)result.ElementAt(0).Date).ShouldEqual(concreteCollection.ElementAt(0).Date);
 
-        private It should_be_followed_by_the_second_record = () => result.ElementAt(1)["Date"].ShouldEqual(concreteCollection.ElementAt(1).Date);
+        private It should_be_followed_by_the_second_record = () => ((DateTime)result.ElementAt(1).Date).ShouldEqual(concreteCollection.ElementAt(1).Date);
 
-        private It should_be_followed_by_the_third_record = () => result.ElementAt(2)["Date"].ShouldEqual(concreteCollection.ElementAt(2).Date);
+        private It should_be_followed_by_the_third_record = () => ((DateTime)result.ElementAt(2).Date).ShouldEqual(concreteCollection.ElementAt(2).Date);
 
-        private It should_be_followed_by_the_fourth_record = () => result.ElementAt(3)["Date"].ShouldEqual(concreteCollection.ElementAt(3).Date);
+        private It should_be_followed_by_the_fourth_record = () => ((DateTime)result.ElementAt(3).Date).ShouldEqual(concreteCollection.ElementAt(3).Date);
 
-        private It should_be_followed_by_the_fifth_record = () => result.ElementAt(4)["Date"].ShouldEqual(concreteCollection.ElementAt(4).Date);
+        private It should_be_followed_by_the_fifth_record = () => ((DateTime)result.ElementAt(4).Date).ShouldEqual(concreteCollection.ElementAt(4).Date);
     }
 
     public class When_selecting_a_single_boolean_property : Projection
     {
         private Because of =
             () =>
-            result = concreteCollection.AsQueryable().LinqToQuerystring<ConcreteClass, IQueryable<Dictionary<string, object>>>("?$select=Complete");
-
-        private It should_project_the_name_properties_into_the_dictionary =
-            () => result.ShouldEachConformTo(
-                r => r.ContainsKey("Complete"));
-
-        private It should_only_have_projected_the_one_property =
-            () => result.ShouldEachConformTo(r => r.Count == 1);
+            result = concreteCollection.AsQueryable().LinqToQuerystring<ConcreteClass, IQueryable<object>>("?$select=Complete");
 
         private It should_contain_5_results = () => result.Count().ShouldEqual(5);
 
-        private It should_start_with_the_first_record = () => result.ElementAt(0)["Complete"].ShouldEqual(concreteCollection.ElementAt(0).Complete);
+        private It should_start_with_the_first_record = () => ((bool)result.ElementAt(0).Complete).ShouldEqual(concreteCollection.ElementAt(0).Complete);
 
-        private It should_be_followed_by_the_second_record = () => result.ElementAt(1)["Complete"].ShouldEqual(concreteCollection.ElementAt(1).Complete);
+        private It should_be_followed_by_the_second_record = () => ((bool)result.ElementAt(1).Complete).ShouldEqual(concreteCollection.ElementAt(1).Complete);
 
-        private It should_be_followed_by_the_third_record = () => result.ElementAt(2)["Complete"].ShouldEqual(concreteCollection.ElementAt(2).Complete);
+        private It should_be_followed_by_the_third_record = () => ((bool)result.ElementAt(2).Complete).ShouldEqual(concreteCollection.ElementAt(2).Complete);
 
-        private It should_be_followed_by_the_fourth_record = () => result.ElementAt(3)["Complete"].ShouldEqual(concreteCollection.ElementAt(3).Complete);
+        private It should_be_followed_by_the_fourth_record = () => ((bool)result.ElementAt(3).Complete).ShouldEqual(concreteCollection.ElementAt(3).Complete);
 
-        private It should_be_followed_by_the_fifth_record = () => result.ElementAt(4)["Complete"].ShouldEqual(concreteCollection.ElementAt(4).Complete);
+        private It should_be_followed_by_the_fifth_record = () => ((bool)result.ElementAt(4).Complete).ShouldEqual(concreteCollection.ElementAt(4).Complete);
     }
 
     public class When_selecting_multiple_properties : Projection
     {
         private Because of =
             () =>
-            result = concreteCollection.AsQueryable().LinqToQuerystring<ConcreteClass, IQueryable<Dictionary<string, object>>>("?$select=Name,Age");
-
-        private It should_project_the_name_and_age_properties_into_the_dictionary =
-            () => result.ShouldEachConformTo(
-                r => r.ContainsKey("Name") && r.ContainsKey("Age"));
-
-        private It should_only_have_projected_two_properties =
-            () => result.ShouldEachConformTo(r => r.Count == 2);
+            result = concreteCollection.AsQueryable().LinqToQuerystring<ConcreteClass, IQueryable<object>>("?$select=Name,Age");
 
         private It should_contain_5_results = () => result.Count().ShouldEqual(5);
 
-        private It should_project_the_right_name_for_the_first_record = () => result.ElementAt(0)["Age"].ShouldEqual(concreteCollection.ElementAt(0).Age);
+        private It should_project_the_right_name_for_the_first_record = () => ((int)result.ElementAt(0).Age).ShouldEqual(concreteCollection.ElementAt(0).Age);
 
-        private It should_project_the_right_name_for_the_second_record = () => result.ElementAt(1)["Age"].ShouldEqual(concreteCollection.ElementAt(1).Age);
+        private It should_project_the_right_name_for_the_second_record = () => ((int)result.ElementAt(1).Age).ShouldEqual(concreteCollection.ElementAt(1).Age);
 
-        private It should_project_the_right_name_for_the_third_record = () => result.ElementAt(2)["Age"].ShouldEqual(concreteCollection.ElementAt(2).Age);
+        private It should_project_the_right_name_for_the_third_record = () => ((int)result.ElementAt(2).Age).ShouldEqual(concreteCollection.ElementAt(2).Age);
 
-        private It should_project_the_right_name_for_the_fourth_record = () => result.ElementAt(3)["Age"].ShouldEqual(concreteCollection.ElementAt(3).Age);
+        private It should_project_the_right_name_for_the_fourth_record = () => ((int)result.ElementAt(3).Age).ShouldEqual(concreteCollection.ElementAt(3).Age);
 
-        private It sshould_project_the_right_name_for_the_fifth_record = () => result.ElementAt(4)["Age"].ShouldEqual(concreteCollection.ElementAt(4).Age);
+        private It sshould_project_the_right_name_for_the_fifth_record = () => ((int)result.ElementAt(4).Age).ShouldEqual(concreteCollection.ElementAt(4).Age);
 
-        private It should_project_the_right_age_for_the_first_record = () => result.ElementAt(0)["Name"].ShouldEqual(concreteCollection.ElementAt(0).Name);
+        private It should_project_the_right_age_for_the_first_record = () => ((string)result.ElementAt(0).Name).ShouldEqual(concreteCollection.ElementAt(0).Name);
 
-        private It should_project_the_right_age_for_the_second_record = () => result.ElementAt(1)["Name"].ShouldEqual(concreteCollection.ElementAt(1).Name);
+        private It should_project_the_right_age_for_the_second_record = () => ((string)result.ElementAt(1).Name).ShouldEqual(concreteCollection.ElementAt(1).Name);
 
-        private It should_project_the_right_age_for_the_third_record = () => result.ElementAt(2)["Name"].ShouldEqual(concreteCollection.ElementAt(2).Name);
+        private It should_project_the_right_age_for_the_third_record = () => ((string)result.ElementAt(2).Name).ShouldEqual(concreteCollection.ElementAt(2).Name);
 
-        private It should_project_the_right_age_for_the_fourth_record = () => result.ElementAt(3)["Name"].ShouldEqual(concreteCollection.ElementAt(3).Name);
+        private It should_project_the_right_age_for_the_fourth_record = () => ((string)result.ElementAt(3).Name).ShouldEqual(concreteCollection.ElementAt(3).Name);
 
-        private It should_project_the_right_age_for_the_fifth_record = () => result.ElementAt(4)["Name"].ShouldEqual(concreteCollection.ElementAt(4).Name);
+        private It should_project_the_right_age_for_the_fifth_record = () => ((string)result.ElementAt(4).Name).ShouldEqual(concreteCollection.ElementAt(4).Name);
     }
 
     public class When_selecting_a_nullable_int_property : Projection
     {
         private Because of =
             () =>
-            nullableResult = nullableCollection.AsQueryable().LinqToQuerystring<NullableClass, IQueryable<Dictionary<string, object>>>("?$select=Age");
+            nullableResult = nullableCollection.AsQueryable().LinqToQuerystring<NullableClass, IQueryable<object>>("?$select=Age");
 
-        private It should_project_the_name_properties_into_the_dictionary =
-            () => nullableResult.ShouldEachConformTo(
-                r => r.ContainsKey("Age"));
-
-        private It should_only_have_projected_the_one_property =
-            () => nullableResult.ShouldEachConformTo(r => r.Count == 1);
 
         private It should_contain_2_results = () => nullableResult.Count().ShouldEqual(2);
 
-        private It should_start_with_the_first_record = () => nullableResult.ElementAt(0)["Age"].ShouldEqual(nullableCollection.ElementAt(0).Age);
+        private It should_start_with_the_first_record = () => ((int?)nullableResult.ElementAt(0).Age).ShouldEqual(nullableCollection.ElementAt(0).Age);
 
-        private It should_then_return_the_second_record = () => nullableResult.ElementAt(1)["Age"].ShouldEqual(nullableCollection.ElementAt(1).Age);
+        private It should_then_return_the_second_record = () => ((int?)nullableResult.ElementAt(1).Age).ShouldEqual(nullableCollection.ElementAt(1).Age);
     }
 
     #endregion

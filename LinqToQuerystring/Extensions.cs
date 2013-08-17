@@ -7,6 +7,7 @@
     using System.Linq.Expressions;
     using Antlr.Runtime;
     using Antlr.Runtime.Tree;
+    using TypeSystem;
 
     public static class Extensions
     {
@@ -62,14 +63,14 @@
             var odataQuerystring = string.Join("&", odataQueries.ToArray());
 
             var input = new ANTLRReaderStream(new StringReader(odataQuerystring));
-            var lexer = new LinqToQuerystringLexer(input);
+            var lexer = new ODataQueryLexer(input);
             var tokStream = new CommonTokenStream(lexer);
 
-            var parser = new LinqToQuerystringParser(tokStream);
+            var parser = new ODataQueryParser(tokStream);
 
-            var result = parser.prog();
-            
-            return ApplyQuery(result.Tree as CommonTree, ref queryResult, ref constrainedQuery, forceDynamicProperties: forceDynamicProperties);
+            var result = parser.parse();
+
+            return ApplyQuery(result.Tree as CommonTree, ref queryResult, ref constrainedQuery, forceDynamicProperties);
         }
 
         private static object ApplyQuery(CommonTree tree, ref IQueryable queryResult, ref IQueryable constrainedQuery, bool forceDynamicProperties = false)
@@ -77,9 +78,9 @@
             if (tree == null)
                 return constrainedQuery;
 
-            var visitor = new QueryBuilder(forceDynamicProperties);
+            var visitor = new QueryBuilder(new DefaultTypeInfoProvider(), new DefaultTypeBuilder());
 
-            var query = visitor.BuildQuery(tree, constrainedQuery.ElementType);
+            var query = visitor.BuildQuery(tree, constrainedQuery.ElementType, forceDynamicProperties);
 
             if (query.Filter != null)
             {
@@ -109,7 +110,7 @@
                 constrainedQuery = ApplyMethod(constrainedQuery, "Take", Expression.Constant(query.Top.Value, typeof(int)));
 
             if (query.Select != null)
-                constrainedQuery = ApplyMethod(constrainedQuery, "Select", query.Select, typeof(Dictionary<string, object>));
+                constrainedQuery = ApplyMethod(constrainedQuery, "Select", query.Select, query.Select.ReturnType);
            
             
             return query.InlineCount ? PackageResults(queryResult, constrainedQuery) : constrainedQuery;

@@ -1,4 +1,4 @@
-grammar LinqToQuerystring;
+grammar ODataQuery;
 
 options
 {
@@ -31,16 +31,16 @@ public override void ReportError(RecognitionException e) {
 }
 }
 
-public prog
+public parse
 	:	(param (AMP! param)*)*;
 
 param	:	(orderby | top | skip | filter | select | inlinecount | expand);
 
 skip	
-	:	SKIP^ INT+;
+	:	SKIP^ T_INT+;
 
 top	
-	:	TOP^ INT+;
+	:	TOP^ T_INT+;
 
 filter	
 	:	FILTER^ filterexpression[false];
@@ -56,21 +56,25 @@ inlinecount
 	|	INLINECOUNT NONE ->;
 
 filterexpression[bool subquery]
-	:	orexpression[subquery] (SPACE! OR^ SPACE! orexpression[subquery])*;
+	:	orexpression[subquery] (SPACE! BOP_OR^ SPACE! orexpression[subquery])*;
 	
 orexpression[bool subquery]
-	:	andexpression[subquery] (SPACE! AND^ SPACE! andexpression[subquery])*;
+	:	andexpression[subquery] (SPACE! BOP_AND^ SPACE! andexpression[subquery])*;
 	
 andexpression[bool subquery]
-	:	(NOT SPACE (OP exp=filterexpression[subquery] CP | exp=booleanexpression[subquery])) -> ^(NOT $exp)
-	|	(OP exp=filterexpression[subquery] CP | exp=booleanexpression[subquery]) -> $exp;
+	:	(BOP_NOT^ SPACE! (OP! filterexpression[subquery] CP! | booleanexpression[subquery]))
+	|	(OP! filterexpression[subquery] CP! | booleanexpression[subquery]);
 		
 booleanexpression[bool subquery]
 	:	atom1=atom[subquery] (
-			SPACE (op=EQUALS | op=NOTEQUALS | op=GREATERTHAN | op=GREATERTHANOREQUAL | op=LESSTHAN | op=LESSTHANOREQUAL) SPACE atom2=atom[subquery] 	
+			SPACE op=comparison SPACE atom2=atom[subquery] 	
 			-> ^($op $atom1 $atom2)
-		|	-> ^(EQUALS["eq"] $atom1 BOOL["true"])
+		|	-> ^(BOP_EQUALS["eq"] $atom1 T_BOOL["true"])
 		);
+
+comparison 
+	:	(BOP_EQUALS | BOP_NOTEQUALS | BOP_GREATERTHAN | BOP_GREATERTHANOREQUAL | BOP_LESSTHAN | BOP_LESSTHANOREQUAL)
+	;
 		
 atom[bool subquery]
 	:	functioncall[subquery]
@@ -78,15 +82,15 @@ atom[bool subquery]
 	|	accessor[subquery];
 	
 functioncall[bool subquery]:
-		(function OP atom[subquery] (COMMA atom[subquery])* CP) -> ^(function atom+)
-		| (fun=SUBSTRINGOF OP arg=atom[subquery] COMMA str=atom[subquery] CP)
+		(function^ OP! atom[subquery] (COMMA! atom[subquery])* CP!)
+		| (fun=M_SUBSTRINGOF OP arg=atom[subquery] COMMA str=atom[subquery] CP)
 			-> ^($fun $str $arg)
 		;
 
 accessor[bool subquery]:
 		(propertyname[subquery] -> propertyname) 
 		(
-			SLASH (func=ANY | func=ALL | func=COUNT | func=MAX | func=MIN | func=SUM | func=AVERAGE) 
+			SLASH (func=M_ANY | func=M_ALL | func=M_COUNT | func=M_MAX | func=M_MIN | func=M_SUM | func=M_AVERAGE) 
 			OP (
 					(lambaexpression) -> ^($func $accessor lambaexpression)
 					| -> ^($func $accessor) 
@@ -99,7 +103,7 @@ lambaexpression
 	;
 
 function
-	:	STARTSWITH | ENDSWITH | INDEXOF | TOLOWER | TOUPPER | LENGTH | TRIM;
+	:	M_STARTSWITH | M_ENDSWITH | M_INDEXOF | M_TOLOWER | M_TOUPPER | M_LENGTH | M_TRIM;
 		
 orderby
 	:	ORDERBY^ orderbylist;
@@ -113,7 +117,7 @@ orderpropertyname
 			| (SPACE (op=ASC | op=DESC)) -> ^($op propertyname)
 		);
 	
-constant:	(INT^ | BOOL^ | STRING^ | DATETIME^ | LONG^ | SINGLE^ | DOUBLE^ | GUID^ | BYTE^ | NULL^);
+constant:	(T_INT^ | T_BOOL^ | T_STRING^ | T_DATETIME^ | T_LONG^ | T_SINGLE^ | T_DOUBLE^ | T_GUID^ | T_BYTE^ | T_NULL^);
 
 propertyname[bool subquery]
 	:	(identifierpart[subquery] -> identifierpart) (SLASH next=subpropertyname[false] -> ^($next $propertyname))?;
@@ -127,37 +131,116 @@ identifierpart[bool subquery]
 		| DYNAMICIDENTIFIER -> DYNAMICIDENTIFIER);
 
 filteroperator
-	:	EQUALS | NOTEQUALS | GREATERTHAN | GREATERTHANOREQUAL | LESSTHAN | LESSTHANOREQUAL;
+	:	BOP_EQUALS | BOP_NOTEQUALS | BOP_GREATERTHAN | BOP_GREATERTHANOREQUAL | BOP_LESSTHAN | BOP_LESSTHANOREQUAL;
+
+/* Types */
+T_BOOL	
+	:	('true' | 'false');
+
+T_BYTE	
+	:	'0x' HEX_PAIR;
+
+T_DATETIME
+	:	'datetime\'' '0'..'9'+ '-' '0'..'9'+ '-' + '0'..'9'+ 'T' '0'..'9'+ ':' '0'..'9'+ (':' '0'..'9'+ ('.' '0'..'9'+)*)* '\'';
+
+T_DOUBLE	
+	:	('-')? ('0'..'9')+ '.' ('0'..'9')+;
+
+T_GUID	
+	:	'guid\'' HEX_PAIR HEX_PAIR HEX_PAIR HEX_PAIR '-' HEX_PAIR HEX_PAIR '-' HEX_PAIR HEX_PAIR '-' HEX_PAIR HEX_PAIR '-' HEX_PAIR HEX_PAIR HEX_PAIR HEX_PAIR HEX_PAIR HEX_PAIR '\'';
+
+T_INT	
+	:	('-')? '0'..'9'+;
+
+T_LONG	
+	:	('-')? ('0'..'9')+ 'L';
+
+T_NULL	
+	:	'null';
+
+T_SINGLE	
+	:	('-')? ('0'..'9')+ '.' ('0'..'9')+ 'f';
+
+T_STRING 	
+	: 	'\'' (ESC_SEQ| ~('\\'|'\''))* '\'';
+
+/* Booleand Operations */
+BOP_AND	
+	: 	'and';
+
+BOP_EQUALS	
+	:	'eq';	
+	
+BOP_GREATERTHAN	
+	:	'gt';	
+	
+BOP_GREATERTHANOREQUAL
+	:	'ge';	
+	
+BOP_LESSTHAN	
+	:	'lt';	
+	
+BOP_LESSTHANOREQUAL
+	:	'le';	
+
+BOP_NOT		
+	:	'not';
+
+BOP_NOTEQUALS	
+	:	'ne';	
+
+BOP_OR	
+	:	'or';
+
+/* Methods */
+M_ALL	
+	:	'all';
+
+M_ANY	
+	: 	'any';
+	
+M_AVERAGE	
+	:	'average';
+	
+M_COUNT	
+	:	'count';
+
+M_ENDSWITH
+	:	'endswith';
+
+M_INDEXOF
+	:	'indexof';
+	
+M_LENGTH
+	:	'length';
+
+M_MIN	
+	:	'min';
+
+M_MAX	
+	:	'max';
+
+M_STARTSWITH 
+	:	'startswith';
+
+M_SUBSTRINGOF
+	:	'substringof';
+
+M_SUM	
+	:	'sum';
+	
+M_TOLOWER
+	:	'tolower';
+
+M_TOUPPER
+	:	'toupper';
+
+M_TRIM
+	:	'trim';
+
 	
 ASSIGN
 	: 	'=';
-
-EQUALS	
-	:	'eq';	
-	
-NOTEQUALS	
-	:	'ne';	
-	
-GREATERTHAN	
-	:	'gt';	
-	
-GREATERTHANOREQUAL
-	:	'ge';	
-	
-LESSTHAN	
-	:	'lt';	
-	
-LESSTHANOREQUAL
-	:	'le';	
-
-NOT		
-	:	'not';
-
-OR	
-	:	'or';
-
-AND	
-	: 	'and';
 
 ASC	
 	:	'asc';
@@ -189,58 +272,9 @@ SELECT
 INLINECOUNT
 	:	'$inlinecount=';
 	
-EXPAND	:	'$expand=';
+EXPAND	
+	:	'$expand=';
 	
-STARTSWITH
-	:	'startswith';
-	
-ENDSWITH
-	:	'endswith';
-
-INDEXOF
-	:	'indexof';
-	
-SUBSTRINGOF
-	:	'substringof';
-	
-TOLOWER
-	:	'tolower';
-
-TOUPPER
-	:	'toupper';
-
-LENGTH
-	:	'length';
-
-TRIM
-	:	'trim';
-	
-ANY	: 	'any';
-	
-ALL	:	'all';
-
-COUNT	:	'count';
-
-MIN	:	'min';
-
-MAX	:	'max';
-
-SUM	:	'sum';
-
-AVERAGE	:	'average';
-		
-INT	:	('-')? '0'..'9'+;
-	
-LONG	:	('-')? ('0'..'9')+ 'L';
-	
-DOUBLE	:	('-')? ('0'..'9')+ '.' ('0'..'9')+;
-	
-SINGLE	:	('-')? ('0'..'9')+ '.' ('0'..'9')+ 'f';
-	
-BOOL	:	('true' | 'false');
-
-NULL	:	'null';
-
 LAMBDA : ':';
 
 AMP : '&';
@@ -253,12 +287,6 @@ COMMA : ',';
 
 SLASH : '/';
 
-DATETIME
-	:	'datetime\'' '0'..'9'+ '-' '0'..'9'+ '-' + '0'..'9'+ 'T' '0'..'9'+ ':' '0'..'9'+ (':' '0'..'9'+ ('.' '0'..'9'+)*)* '\'';
-	
-GUID	:	'guid\'' HEX_PAIR HEX_PAIR HEX_PAIR HEX_PAIR '-' HEX_PAIR HEX_PAIR '-' HEX_PAIR HEX_PAIR '-' HEX_PAIR HEX_PAIR '-' HEX_PAIR HEX_PAIR HEX_PAIR HEX_PAIR HEX_PAIR HEX_PAIR '\'';
-
-BYTE	:	'0x' HEX_PAIR;
 
 SPACE	:	(' '|'\t')+;
 
@@ -273,8 +301,6 @@ HEX_PAIR
 	
 IDENTIFIER
 	:	('a'..'z'|'A'..'Z'|'0'..'9'|'_')+;
-	
-STRING 	: 	'\'' (ESC_SEQ| ~('\\'|'\''))* '\'';
 
 fragment
 HEX_DIGIT : ('0'..'9'|'a'..'f'|'A'..'F') ;
