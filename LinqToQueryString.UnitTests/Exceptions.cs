@@ -7,6 +7,7 @@
     using LinqToQuerystring.Exceptions;
 
     using Machine.Specifications;
+    using ODataQuery.Exceptions;
 
     #region Filter on String tests
 

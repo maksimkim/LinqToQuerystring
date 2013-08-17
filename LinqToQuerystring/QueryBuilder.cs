@@ -12,6 +12,7 @@
     using Antlr.Runtime.Tree;
     using Exceptions;
     using TypeSystem;
+    using ODataQuery;
 
     public class QueryBuilder
     {
@@ -408,7 +409,8 @@
 
             var method = _methods[node.Type - MethodShift];
 
-            Contract.Assert(method != null);
+            if (method == null)
+                throw new QueryParserException(string.Format("Unsupported function {0}", node.Text));
 
             //special case function signature
             if (node.Type == ODataQueryLexer.M_SUBSTRINGOF)

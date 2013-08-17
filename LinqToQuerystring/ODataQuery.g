@@ -11,12 +11,12 @@ tokens {
     ALIAS;
 }
 
-@lexer::namespace { LinqToQuerystring }
-@parser::namespace { LinqToQuerystring }
+@lexer::namespace { ODataQuery }
+@parser::namespace { ODataQuery }
 
 
 @lexer::header {
-using LinqToQuerystring.Exceptions;
+using ODataQuery.Exceptions;
 }
 
 @lexer::members {

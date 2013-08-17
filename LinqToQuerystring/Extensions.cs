@@ -8,6 +8,7 @@
     using Antlr.Runtime;
     using Antlr.Runtime.Tree;
     using TypeSystem;
+    using ODataQuery;
 
     public static class Extensions
     {
