@@ -2,13 +2,9 @@
 {
     using System;
     using System.Collections.Generic;
-    using System.IO;
     using System.Linq;
     using System.Linq.Expressions;
-    using Antlr.Runtime;
-    using Antlr.Runtime.Tree;
     using TypeSystem;
-    using ODataQuery;
 
     public static class Extensions
     {
@@ -63,25 +59,19 @@
 
             var odataQuerystring = string.Join("&", odataQueries.ToArray());
 
-            var input = new ANTLRReaderStream(new StringReader(odataQuerystring));
-            var lexer = new ODataQueryLexer(input);
-            var tokStream = new CommonTokenStream(lexer);
+            
 
-            var parser = new ODataQueryParser(tokStream);
-
-            var result = parser.parse();
-
-            return ApplyQuery(result.Tree as CommonTree, ref queryResult, ref constrainedQuery);
+            return ApplyQuery(odataQuerystring, ref queryResult, ref constrainedQuery);
         }
 
-        private static object ApplyQuery(CommonTree tree, ref IQueryable queryResult, ref IQueryable constrainedQuery)
+        private static object ApplyQuery(string queryString, ref IQueryable queryResult, ref IQueryable constrainedQuery)
         {
-            if (tree == null)
+            if (string.IsNullOrWhiteSpace(queryString))
                 return constrainedQuery;
 
             var visitor = new QueryBuilder(new DefaultTypeInfoProvider(), new DefaultTypeBuilder());
 
-            var query = visitor.Build(tree, constrainedQuery.ElementType);
+            var query = visitor.Build(queryString, constrainedQuery.ElementType);
 
             if (query.Filter != null)
             {

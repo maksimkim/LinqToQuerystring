@@ -6,9 +6,11 @@
     using System.Collections.Generic;
     using System.Diagnostics.Contracts;
     using System.Globalization;
+    using System.IO;
     using System.Linq;
     using System.Linq.Expressions;
     using System.Reflection;
+    using Antlr.Runtime;
     using Antlr.Runtime.Tree;
     using ODataQuery.Exceptions;
     using TypeSystem;
@@ -196,40 +198,53 @@
             _binaries[ODataQueryLexer.BOP_AND - BoolOpShift] = Expression.And;
         }
 
-        public QueryModel Build(CommonTree tree, Type itemType)
+        public QueryModel Build(string queryString, Type itemType)
         {
+            CommonTree tree;
+
+            using (var stringReader = new StringReader(queryString))
+            {
+                var input = new ANTLRReaderStream(stringReader);
+                var lexer = new ODataQueryLexer(input);
+                var tokStream = new CommonTokenStream(lexer);
+                var parser = new ODataQueryParser(tokStream);
+
+                tree = parser.parse().Tree as CommonTree;
+            }
+
             var result = new QueryModel();
 
-            foreach (var node in IterateClauses(tree))
-            {
-                switch (node.Type)
+            if (tree != null)
+                foreach (var model in IterateClauses(tree))
                 {
-                    case ODataQueryLexer.FILTER:
-                        result.Filter = VisitFilter(node, itemType);
-                        break;
-                    case ODataQueryLexer.ORDERBY:
-                        result.OrderBy = VisitOrderBy(node, itemType).ToArray();
-                        break;
-                    case ODataQueryLexer.EXPAND:
-                        result.Expand = VisitExpand(node, itemType).ToArray();
-                        break;
-                    case ODataQueryLexer.SELECT:
-                        result.Select = VisitSelect(node, itemType);
-                        break;
-                    case ODataQueryLexer.SKIP:
-                        result.Skip = VisitSkip(node);
-                        break;
-                    case ODataQueryLexer.TOP:
-                        result.Top = VisitTop(node);
-                        break;
-                    case ODataQueryLexer.INLINECOUNT:
-                        result.InlineCount = true;
-                        break;
-                    default:
-                        node.Invalid();
-                        break;
+                    switch (model.Type)
+                    {
+                        case ODataQueryLexer.FILTER:
+                            result.Filter = VisitFilter(model, itemType);
+                            break;
+                        case ODataQueryLexer.ORDERBY:
+                            result.OrderBy = VisitOrderBy(model, itemType).ToArray();
+                            break;
+                        case ODataQueryLexer.EXPAND:
+                            result.Expand = VisitExpand(model, itemType).ToArray();
+                            break;
+                        case ODataQueryLexer.SELECT:
+                            result.Select = VisitSelect(model, itemType);
+                            break;
+                        case ODataQueryLexer.SKIP:
+                            result.Skip = VisitSkip(model);
+                            break;
+                        case ODataQueryLexer.TOP:
+                            result.Top = VisitTop(model);
+                            break;
+                        case ODataQueryLexer.INLINECOUNT:
+                            result.InlineCount = true;
+                            break;
+                        default:
+                            model.Invalid();
+                            break;
+                    }
                 }
-            }
 
             return result;
         }
